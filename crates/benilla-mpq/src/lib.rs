@@ -210,11 +210,16 @@ impl Archive {
     ///
     /// The files are indexed once at open, so a folder that changes after is seen only on reopen.
     /// A symlink to a file is followed; a symlink to a directory is not descended, so a cycle
-    /// cannot loop the walk.
+    /// cannot loop the walk. Files that differ only in case (possible on a case-sensitive
+    /// filesystem) index as one entry: the lexicographically last path wins.
     pub fn open_dir(path: impl AsRef<Path>) -> Result<Self> {
         let root = path.as_ref().to_path_buf();
-        let mut files = BTreeMap::new();
-        index_tree(&root, &root, &mut files)?;
+        let mut entries: Vec<(String, DirFile)> = Vec::new();
+        index_tree(&root, &root, &mut entries)?;
+        // read_dir order is arbitrary; sort so a case-variant pair resolves deterministically:
+        // the lexicographically last path wins the shared key.
+        entries.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.rel.cmp(&b.1.rel)));
+        let files: BTreeMap<String, DirFile> = entries.into_iter().collect();
         Ok(Archive {
             index: Arc::new(Index::Dir(DirIndex { root, files })),
         })
@@ -576,8 +581,8 @@ fn normalize_name(name: &str) -> String {
     name.replace('\\', "/").to_ascii_lowercase()
 }
 
-/// Every file under `dir`, into `files`, keyed by its path under `root`.
-fn index_tree(root: &Path, dir: &Path, files: &mut BTreeMap<String, DirFile>) -> Result<()> {
+/// Every file under `dir`, into `entries`, keyed by its path under `root`.
+fn index_tree(root: &Path, dir: &Path, entries: &mut Vec<(String, DirFile)>) -> Result<()> {
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let kind = entry.file_type()?;
@@ -585,29 +590,29 @@ fn index_tree(root: &Path, dir: &Path, files: &mut BTreeMap<String, DirFile>) ->
         if kind.is_symlink() {
             // A link to a file counts; a link to a directory is not descended (a cycle risk).
             if path.is_file() {
-                insert_file(root, &path, files)?;
+                index_file(root, &path, entries)?;
             }
             continue;
         }
         if kind.is_file() {
-            insert_file(root, &path, files)?;
+            index_file(root, &path, entries)?;
         } else if kind.is_dir() {
-            index_tree(root, &path, files)?;
+            index_tree(root, &path, entries)?;
         }
     }
     Ok(())
 }
 
-fn insert_file(root: &Path, path: &Path, files: &mut BTreeMap<String, DirFile>) -> Result<()> {
+fn index_file(root: &Path, path: &Path, entries: &mut Vec<(String, DirFile)>) -> Result<()> {
     let rel = path.strip_prefix(root).expect("walked under the root");
     let size = path.metadata()?.len();
-    files.insert(
+    entries.push((
         normalize_name(&rel.to_string_lossy()),
         DirFile {
             rel: rel.to_path_buf(),
             size,
         },
-    );
+    ));
     Ok(())
 }
 
@@ -1205,6 +1210,22 @@ mod tests {
         let arc = Archive::open_dir(&root).expect("an empty folder opens");
         assert!(!arc.contains("anything"));
         assert_eq!(arc.file_size("anything"), None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Two files that differ only in case index as one entry, and the winner is deterministic,
+    /// not the read_dir order. On a case-sensitive filesystem both exist and the lexicographically
+    /// last path (`a/foo.txt`) wins; on a case-insensitive one the second write overwrites the
+    /// first, so the same content is left. Either way `a/foo.txt` reads `lower`.
+    #[test]
+    fn a_case_variant_pair_indexes_deterministically() {
+        let (arc, root) = open_dir_kept(
+            "case_variant",
+            &[("a/Foo.txt", b"upper"), ("a/foo.txt", b"lower")],
+        );
+        assert!(arc.contains("a/foo.txt"), "the shared key resolves");
+        assert_eq!(arc.read_file("a/foo.txt").unwrap(), b"lower");
+        assert_eq!(arc.read_file("a\\Foo.txt").unwrap(), b"lower");
         let _ = std::fs::remove_dir_all(&root);
     }
 }
