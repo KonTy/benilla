@@ -355,7 +355,8 @@ pub const VANILLA_BASE_ORDER: &[&str] = &[
 ];
 
 /// [`Chain::open`] on one `.MPQ` file or a vanilla `Data` directory, whose folders under a
-/// mountable name mount as loose-file archives.
+/// mountable name — an `.mpq` name or the same with a `.patch` extension — mount as loose-file
+/// archives.
 pub fn open_chain(path: &Path) -> Result<Chain> {
     Chain::open(path)
 }
