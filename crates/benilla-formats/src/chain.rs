@@ -1,6 +1,10 @@
 //! The vanilla patch chain: a priority-ordered set of MPQ archives, read through `benilla-mpq`. A
 //! read resolves a name to the highest-priority archive holding it, so a patch wins; base archives
 //! carry no `(listfile)`, so resolution is by name hash.
+//!
+//! An entry of a `Data` folder that is a folder under a mountable name (a `patch-?.MPQ` of loose
+//! files) mounts as an archive too, its files at their paths under the folder; see the
+//! `Deviation` on [`Chain::open`].
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -60,33 +64,63 @@ fn mount_order(dir_names: &[String]) -> Vec<String> {
 }
 
 impl Chain {
-    /// Open a `Data` directory's archives in [`mount_order`], or a single `.MPQ` file.
+    /// Open a `Data` directory's archives in [`mount_order`], or a single `.MPQ` file. An entry
+    /// that is a folder under a mountable name (a `patch-?.MPQ` of loose files) mounts as an
+    /// archive of its files, at their paths under the folder.
     ///
     /// Deviation: an archive that fails to open is an error, where the reference logs
     /// `"Failed to open archive"` and goes on, because a skipped corrupt archive surfaces only as
     /// missing files far downstream.
+    ///
+    /// Deviation: a folder under a mountable name mounts as a loose-file archive, where the
+    /// 1.12.1 client finds it by the same name glob and its file layer rejects it at the open
+    /// (packed MPQs only). A loose folder stands in for a patch without repacking one.
     pub fn open(path: &Path) -> Result<Self> {
         let mut archives = Vec::new();
         if path.is_dir() {
-            let mut names: Vec<String> = std::fs::read_dir(path)
-                .with_context(|| format!("listing {}", path.display()))?
-                .filter_map(|entry| {
-                    let entry = entry.ok()?;
-                    // `path().is_file()` follows symlinks (`read_dir`'s file_type doesn't).
-                    entry.path().is_file().then(|| entry.file_name())
-                })
-                .filter_map(|name| name.into_string().ok())
-                .collect();
+            // Files and folders alike; `path()` follows symlinks (`read_dir`'s file_type doesn't).
+            let mut files: Vec<String> = Vec::new();
+            let mut folders: Vec<String> = Vec::new();
+            for entry in
+                std::fs::read_dir(path).with_context(|| format!("listing {}", path.display()))?
+            {
+                let entry = match entry {
+                    Ok(entry) => entry,
+                    Err(_) => continue,
+                };
+                let Some(name) = entry.file_name().into_string().ok() else {
+                    continue;
+                };
+                if entry.path().is_file() {
+                    files.push(name);
+                } else if entry.path().is_dir() {
+                    folders.push(name);
+                }
+            }
             // read_dir order is arbitrary; sort so case-variant ties resolve deterministically.
-            names.sort();
+            files.sort();
+            folders.sort();
+            // A file and a folder that differ only in case: the file is what the reference opens,
+            // so the folder is dropped and the mount order cannot take it in the file's place.
+            let file_names: HashSet<String> =
+                files.iter().map(|n| n.to_ascii_lowercase()).collect();
+            let mut names: Vec<String> = files;
+            names.extend(
+                folders
+                    .into_iter()
+                    .filter(|n| !file_names.contains(&n.to_ascii_lowercase())),
+            );
             for name in mount_order(&names) {
                 let mpq = path.join(&name);
-                archives.push(
-                    Archive::open(&mpq).with_context(|| format!("opening {}", mpq.display()))?,
-                );
+                let archive = if mpq.is_dir() {
+                    Archive::open_dir(&mpq)
+                } else {
+                    Archive::open(&mpq)
+                };
+                archives.push(archive.with_context(|| format!("opening {}", mpq.display()))?);
             }
             if archives.is_empty() {
-                bail!("no known vanilla MPQs found in {}", path.display());
+                bail!("no known vanilla archives found in {}", path.display());
             }
         } else {
             archives.push(
@@ -177,6 +211,7 @@ impl Chain {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     fn owned(names: &[&str]) -> Vec<String> {
         names.iter().map(|n| n.to_string()).collect()
@@ -240,5 +275,81 @@ mod tests {
             mount_order(&dir),
             owned(&["DBC.mpq", "Model.MPQ", "PATCH.mpq"])
         );
+    }
+
+    /// A unique temp `Data` folder (pid and a counter), so parallel tests never collide.
+    fn temp_data(tag: &str) -> PathBuf {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static COUNTER: AtomicU32 = AtomicU32::new(0);
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!(
+            "benilla_chain_test_{}_{}_{}",
+            std::process::id(),
+            n,
+            tag
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("make temp data dir");
+        dir
+    }
+
+    /// Write `bytes` at `dir.join(rel)`, making the parent dirs.
+    fn write_at(dir: &Path, rel: &str, bytes: &[u8]) {
+        let p = dir.join(rel);
+        if let Some(parent) = p.parent() {
+            std::fs::create_dir_all(parent).expect("make parent dirs");
+        }
+        std::fs::write(&p, bytes).expect("write loose file");
+    }
+
+    /// A `Data` folder whose patches are loose-file folders: they mount in the patch order, the
+    /// later one wins, and names resolve case-insensitively with either separator.
+    #[test]
+    fn patch_folders_mount_in_the_patch_order_and_the_later_wins() {
+        let data = temp_data("folders");
+        write_at(&data, "patch-a.mpq/Interface/A.txt", b"a");
+        write_at(&data, "patch-b.mpq/Interface/A.txt", b"b");
+        write_at(&data, "patch-b.mpq/Interface/B.txt", b"b-only");
+        // A folder under a non-mountable name is not an archive.
+        write_at(&data, "notes/readme.txt", b"not an archive");
+
+        let chain = Chain::open(&data).expect("open a chain of patch folders");
+        assert!(
+            chain.contains("Interface/A.txt"),
+            "the shared path resolves"
+        );
+        assert_eq!(chain.read("Interface/A.txt").unwrap(), b"b", "patch-b wins");
+        assert_eq!(chain.read("Interface/B.txt").unwrap(), b"b-only");
+        // Case-folded, backslash spelling: the folder index compares as an MPQ hash does.
+        assert_eq!(chain.read("interface\\a.txt").unwrap(), b"b");
+        // The winning archive is the folder, at its path under `Data`.
+        assert_eq!(
+            chain.find_file_archive("Interface/B.txt"),
+            Some(data.join("patch-b.mpq").as_path())
+        );
+        assert!(
+            !chain.contains("readme.txt"),
+            "a non-mountable folder is not an archive"
+        );
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    /// A file and a folder that differ only in case mount as one archive: the file, which is what
+    /// the reference opens. The file is not a real MPQ, so the open refuses — proving it is the
+    /// file the chain picked, not the folder that would have read cleanly.
+    #[test]
+    fn a_file_beats_a_case_variant_folder_under_the_same_name() {
+        let data = temp_data("case_tie");
+        write_at(&data, "patch-2.mpq/Interface/A.txt", b"folder");
+        std::fs::write(data.join("patch-2.MPQ"), b"not an mpq").expect("write junk file patch");
+
+        let err = Chain::open(&data)
+            .err()
+            .expect("the file patch is mounted, and it is not an MPQ");
+        assert!(
+            err.to_string().contains("patch-2.MPQ"),
+            "the error must name the file that was picked: {err:#}"
+        );
+        let _ = std::fs::remove_dir_all(&data);
     }
 }

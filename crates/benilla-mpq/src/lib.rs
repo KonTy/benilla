@@ -1,6 +1,7 @@
-//! A read-only MPQ reader for the 1.12.1 `Data/` chain: format V1/V2, every file stored whole or
-//! `COMPRESS`-flagged and sectored, no encrypted or single-unit files, no PTCH patches. Anything
-//! else is a hard error.
+//! A read-only reader for the 1.12.1 `Data/` chain: the MPQ archives, format V1/V2, every file
+//! stored whole or `COMPRESS`-flagged and sectored, no encrypted or single-unit files, no PTCH
+//! patches — anything else is a hard error. A folder the chain mounts under an archive name is
+//! read as loose files ([`Archive::open_dir`]).
 //!
 //! The patch archives carry delete markers (flag `0x02000000`, size 0): the path is deleted from
 //! the composite chain. [`Archive::contains`] reports one present and [`Archive::read_file`]
@@ -12,6 +13,7 @@
 //! Every allocation sized from a header count or a sector length is capped by the file's size, so
 //! a lying header fails with [`Error::Corrupt`].
 
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -55,8 +57,17 @@ struct BlockEntry {
     flags: u32,
 }
 
-/// An archive's index, parsed once and immutable, shared behind an `Arc`.
-struct Index {
+/// An archive's index, parsed once and immutable, shared behind an `Arc`: a real MPQ's decrypted
+/// tables, or a mounted folder's files.
+enum Index {
+    /// A real MPQ: the header's offset, the sector size, the decrypted hash and block tables.
+    Mpq(MpqIndex),
+    /// A folder mounted under an archive name: its files, keyed by their internal names.
+    Dir(DirIndex),
+}
+
+/// A real MPQ's index.
+struct MpqIndex {
     path: PathBuf,
     /// Byte offset of the MPQ header in the file: 0 in 1.12 data, but found, not assumed.
     archive_offset: u64,
@@ -66,7 +77,21 @@ struct Index {
     block_table: Vec<BlockEntry>,
 }
 
-/// An open MPQ archive, a cheap `Clone + Send + Sync` handle.
+/// One file of a folder archive: its path under the folder's root and its byte size.
+struct DirFile {
+    rel: PathBuf,
+    size: u64,
+}
+
+/// A folder archive's index: every file under the root, keyed by its internal name as an MPQ's
+/// hash compares names — ASCII case-insensitive, `/` and `\` alike.
+struct DirIndex {
+    root: PathBuf,
+    files: BTreeMap<String, DirFile>,
+}
+
+/// An open archive of the `Data/` chain — an MPQ file or a folder mounted under an archive name —
+/// a cheap `Clone + Send + Sync` handle.
 #[derive(Clone)]
 pub struct Archive {
     index: Arc<Index>,
@@ -122,7 +147,8 @@ fn avail_from(file_len: u64, pos: u64) -> usize {
 }
 
 impl Archive {
-    /// Open an archive: find the header, then read and decrypt the hash and block tables.
+    /// Open a real MPQ archive: find the header, then read and decrypt the hash and block tables.
+    /// A folder under an archive name is [`open_dir`].
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref().to_path_buf();
         let mut file = File::open(&path)?;
@@ -165,36 +191,71 @@ impl Archive {
         )?;
 
         Ok(Archive {
-            index: Arc::new(Index {
+            index: Arc::new(Index::Mpq(MpqIndex {
                 path,
                 archive_offset,
                 sector_size,
                 hash_table,
                 block_table,
-            }),
+            })),
+        })
+    }
+
+    /// Open a folder as an archive: its files, at their paths under the folder, readable by the
+    /// internal names [`open_file`] compares them by.
+    ///
+    /// Deviation: the 1.12.1 client's file layer opens only packed MPQs; a folder named for an
+    /// archive is found by the mount glob there and rejected at the open. benilla reads it, so a
+    /// loose tree can stand in for a patch without repacking one.
+    ///
+    /// The files are indexed once at open, so a folder that changes after is seen only on reopen.
+    /// A symlink to a file is followed; a symlink to a directory is not descended, so a cycle
+    /// cannot loop the walk.
+    pub fn open_dir(path: impl AsRef<Path>) -> Result<Self> {
+        let root = path.as_ref().to_path_buf();
+        let mut files = BTreeMap::new();
+        index_tree(&root, &root, &mut files)?;
+        Ok(Archive {
+            index: Arc::new(Index::Dir(DirIndex { root, files })),
         })
     }
 
     /// Whether the archive holds `name`, case-insensitive with `/` and `\` alike. No I/O.
     pub fn contains(&self, name: &str) -> bool {
-        self.index.find(name).is_some()
+        match &*self.index {
+            Index::Mpq(m) => m.find(name).is_some(),
+            Index::Dir(d) => d.find(name).is_some(),
+        }
     }
 
-    /// The uncompressed size of `name`, from the block table.
+    /// The uncompressed size of `name`: the block table of an MPQ, the file's length in a folder.
     pub fn file_size(&self, name: &str) -> Option<u32> {
-        self.index.find(name).map(|b| b.file_size)
+        match &*self.index {
+            Index::Mpq(m) => m.find(name).map(|b| b.file_size),
+            // 1.12 is a 32-bit client: a file past 4 GiB cannot be one of its assets.
+            Index::Dir(d) => d
+                .find(name)
+                .map(|f| u32::try_from(f.size).unwrap_or(u32::MAX)),
+        }
     }
 
     /// Whether `name` is a delete marker: a chain walker stops there instead of falling through.
+    /// A folder archive carries no markers.
     pub fn is_delete_marker(&self, name: &str) -> bool {
-        self.index
-            .find(name)
-            .is_some_and(|b| b.flags & FLAG_DELETE_MARKER != 0)
+        match &*self.index {
+            Index::Mpq(m) => m
+                .find(name)
+                .is_some_and(|b| b.flags & FLAG_DELETE_MARKER != 0),
+            Index::Dir(_) => false,
+        }
     }
 
-    /// The archive's path.
+    /// The archive's path: the MPQ file, or the folder's root.
     pub fn path(&self) -> &Path {
-        &self.index.path
+        match &*self.index {
+            Index::Mpq(m) => &m.path,
+            Index::Dir(d) => &d.root,
+        }
     }
 
     /// Read and decompress a file by its internal path (`/` or `\`, case-insensitive).
@@ -207,7 +268,15 @@ impl Archive {
     /// reference's FMOD streams read the archive through the file callbacks it registers
     /// (`FSOUND_File_SetCallbacks` at `0x7a45e4`).
     pub fn open_file(&self, name: &str) -> Result<ArchiveFile> {
-        let idx = &self.index;
+        match &*self.index {
+            Index::Mpq(m) => self.open_mpq_file(m, name),
+            // A folder's file is a plain file: no sectoring, its whole length readable.
+            Index::Dir(d) => self.open_dir_file(d, name),
+        }
+    }
+
+    /// An MPQ's file: the flag guards, then its sectors in place.
+    fn open_mpq_file(&self, idx: &MpqIndex, name: &str) -> Result<ArchiveFile> {
         let block = idx.find(name).ok_or_else(|| Error::NotFound(name.into()))?;
 
         if block.flags & FLAG_EXISTS == 0 {
@@ -282,6 +351,26 @@ impl Archive {
             .collect::<Result<Vec<u32>>>()?;
         open.offsets = Some(offsets);
         Ok(open)
+    }
+
+    /// A folder's file: the loose file itself, opened for its whole length.
+    fn open_dir_file(&self, idx: &DirIndex, name: &str) -> Result<ArchiveFile> {
+        let entry = idx.find(name).ok_or_else(|| Error::NotFound(name.into()))?;
+        let file = File::open(idx.root.join(&entry.rel))?;
+        // The live length, not the index's: the file may have changed since the walk.
+        let size = file.metadata()?.len() as usize;
+        Ok(ArchiveFile {
+            file,
+            name: name.to_owned(),
+            base: 0,
+            size,
+            sector_size: 0,
+            offsets: None,
+            implode_only: false,
+            avail: size,
+            pos: 0,
+            sector: None,
+        })
     }
 }
 
@@ -447,7 +536,7 @@ impl Seek for ArchiveFile {
     }
 }
 
-impl Index {
+impl MpqIndex {
     /// Locate a file's block entry via the hash table (Blizzard's open-addressed probe).
     fn find(&self, name: &str) -> Option<BlockEntry> {
         let len = self.hash_table.len();
@@ -472,6 +561,54 @@ impl Index {
         }
         None
     }
+}
+
+impl DirIndex {
+    /// The file for `name`, keyed the way an MPQ's hash compares names.
+    fn find(&self, name: &str) -> Option<&DirFile> {
+        self.files.get(&normalize_name(name))
+    }
+}
+
+/// An internal name the way an MPQ's hash compares names (`hash_string`): `/` for `\`, ASCII
+/// case folded. The key of a folder archive's index.
+fn normalize_name(name: &str) -> String {
+    name.replace('\\', "/").to_ascii_lowercase()
+}
+
+/// Every file under `dir`, into `files`, keyed by its path under `root`.
+fn index_tree(root: &Path, dir: &Path, files: &mut BTreeMap<String, DirFile>) -> Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let kind = entry.file_type()?;
+        let path = entry.path();
+        if kind.is_symlink() {
+            // A link to a file counts; a link to a directory is not descended (a cycle risk).
+            if path.is_file() {
+                insert_file(root, &path, files)?;
+            }
+            continue;
+        }
+        if kind.is_file() {
+            insert_file(root, &path, files)?;
+        } else if kind.is_dir() {
+            index_tree(root, &path, files)?;
+        }
+    }
+    Ok(())
+}
+
+fn insert_file(root: &Path, path: &Path, files: &mut BTreeMap<String, DirFile>) -> Result<()> {
+    let rel = path.strip_prefix(root).expect("walked under the root");
+    let size = path.metadata()?.len();
+    files.insert(
+        normalize_name(&rel.to_string_lossy()),
+        DirFile {
+            rel: rel.to_path_buf(),
+            size,
+        },
+    );
+    Ok(())
 }
 
 /// The `MPQ\x1A` header's offset: the first 512-aligned match, or where a `MPQ\x1B` user-data
@@ -591,12 +728,25 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU32, Ordering};
 
-    /// A unique temp path (pid and a counter), so parallel tests never collide.
+    /// One counter for every temp name, so a path and a folder never pick the same one.
+    static TEMP_COUNTER: AtomicU32 = AtomicU32::new(0);
+
+    /// A unique temp path (pid and the shared counter), so parallel tests never collide.
     fn temp_path(tag: &str) -> PathBuf {
-        static COUNTER: AtomicU32 = AtomicU32::new(0);
-        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let n = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
         std::env::temp_dir().join(format!(
             "benilla_mpq_test_{}_{}_{}.mpq",
+            std::process::id(),
+            n,
+            tag
+        ))
+    }
+
+    /// A unique temp folder (pid and the shared counter).
+    fn temp_dir(tag: &str) -> PathBuf {
+        let n = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!(
+            "benilla_mpq_test_dir_{}_{}_{}",
             std::process::id(),
             n,
             tag
@@ -986,5 +1136,75 @@ mod tests {
 
     fn u32_at(b: &[u8], at: usize) -> u32 {
         u32::from_le_bytes([b[at], b[at + 1], b[at + 2], b[at + 3]])
+    }
+
+    /// A folder archive over loose files, the folder kept for in-place reads.
+    fn open_dir_kept(tag: &str, files: &[(&str, &[u8])]) -> (Archive, PathBuf) {
+        let root = temp_dir(tag);
+        for (rel, bytes) in files {
+            let path = root.join(rel);
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).expect("make parent dirs");
+            }
+            std::fs::write(&path, bytes).expect("write loose file");
+        }
+        let archive = Archive::open_dir(&root).expect("open folder archive");
+        (archive, root)
+    }
+
+    /// The on-disk spelling, a backslash spelling and a case-folded spelling all resolve, and a
+    /// miss is a `NotFound`, not a panic or a wrong file.
+    #[test]
+    fn a_folder_archive_reads_its_files_by_internal_name() {
+        let (arc, root) = open_dir_kept(
+            "folder",
+            &[
+                ("Interface/FrameXML/Bar.xml", b"<Bar/>"),
+                ("Sound/Ambience/bed.wav", &[0, 1, 2, 3]),
+            ],
+        );
+        for name in [
+            "Interface/FrameXML/Bar.xml",
+            "Interface\\FrameXML\\Bar.xml",
+            "interface/framexml/bar.xml",
+        ] {
+            assert!(arc.contains(name), "contains {name}");
+            assert_eq!(arc.read_file(name).unwrap(), b"<Bar/>");
+        }
+        assert_eq!(arc.file_size("INTERFACE\\FRAMEXML\\bar.xml"), Some(6));
+        assert_eq!(
+            arc.read_file("sound\\ambience\\bed.wav").unwrap(),
+            [0, 1, 2, 3]
+        );
+        assert!(!arc.is_delete_marker("Interface/FrameXML/Bar.xml"));
+        assert!(!arc.contains("Interface/FrameXML/Nope.xml"));
+        assert!(matches!(
+            arc.read_file("no/such/file.txt"),
+            Err(Error::NotFound(_))
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A folder's file reads in place from any position, like a stored entry.
+    #[test]
+    fn a_folder_file_streams_in_place_from_any_position() {
+        let (arc, root) = open_dir_kept("folder_stream", &[("a.txt", b"hello world")]);
+        let mut f = arc.open_file("a.txt").unwrap();
+        assert_eq!(f.size(), 11);
+        f.seek(SeekFrom::Start(6)).unwrap();
+        let mut got = String::new();
+        f.read_to_string(&mut got).unwrap();
+        assert_eq!(got, "world");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn an_empty_folder_opens_holding_nothing() {
+        let root = temp_dir("empty_folder");
+        std::fs::create_dir_all(&root).expect("make empty folder");
+        let arc = Archive::open_dir(&root).expect("an empty folder opens");
+        assert!(!arc.contains("anything"));
+        assert_eq!(arc.file_size("anything"), None);
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
