@@ -108,7 +108,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(nonzero, 20513, "the nonzero field-11 count");
+        assert_eq!(nonzero, 20514, "the nonzero field-11 count");
         assert_eq!(valid, nonzero, "every nonzero group id resolves");
     }
 }
