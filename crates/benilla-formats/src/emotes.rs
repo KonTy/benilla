@@ -6,10 +6,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
 
 /// The `EmoteFlags` bit `0x2000`: a state emote that yields to an interaction. The state
 /// resolver (`0x5fd7fa`) passes over it for the current interact NPC, and the facing chain
@@ -135,10 +136,12 @@ fn schema(name: &str, n: usize, strings: &[usize]) -> Schema {
 
 /// Read the three tables off the patch chain.
 pub fn load_emote_sound_catalog(chain: &mut Chain) -> Result<EmoteSoundCatalog> {
-    let bytes = chain
-        .read_file("DBFilesClient\\EmotesText.dbc")
-        .context("reading EmotesText.dbc")?;
-    let rs = parse(&bytes, schema("EmotesText", 19, &[1]), "EmotesText")?;
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\EmotesText.dbc",
+        schema("EmotesText", 19, &[1]),
+        "EmotesText",
+    )?;
     let mut by_name = HashMap::with_capacity(rs.records().len());
     let mut text_emote = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
@@ -149,10 +152,12 @@ pub fn load_emote_sound_catalog(chain: &mut Chain) -> Result<EmoteSoundCatalog> 
         text_emote.insert(id, u32_at(r, 2).unwrap_or(0));
     }
 
-    let bytes = chain
-        .read_file("DBFilesClient\\EmotesTextSound.dbc")
-        .context("reading EmotesTextSound.dbc")?;
-    let rs = parse(&bytes, schema("EmotesTextSound", 5, &[]), "EmotesTextSound")?;
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\EmotesTextSound.dbc",
+        schema("EmotesTextSound", 5, &[]),
+        "EmotesTextSound",
+    )?;
     let mut voice = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let (Some(text), Some(race), Some(sex), Some(kit)) =
@@ -163,10 +168,12 @@ pub fn load_emote_sound_catalog(chain: &mut Chain) -> Result<EmoteSoundCatalog> 
         voice.insert((text, race, sex), kit);
     }
 
-    let bytes = chain
-        .read_file("DBFilesClient\\Emotes.dbc")
-        .context("reading Emotes.dbc")?;
-    let rs = parse(&bytes, schema("Emotes", 7, &[1]), "Emotes")?;
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\Emotes.dbc",
+        schema("Emotes", 7, &[1]),
+        "Emotes",
+    )?;
     let mut event_sound = HashMap::with_capacity(rs.records().len());
     let mut anim = HashMap::with_capacity(rs.records().len());
     let mut emote_flags = HashMap::with_capacity(rs.records().len());

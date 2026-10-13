@@ -10,11 +10,11 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
 use crate::chain::Chain;
-use crate::dbc::{f32_at, loc_str, parse, str_at, u32_at};
+use crate::dbc::{f32_at, loc_str, str_at, u32_at};
 
 const CREATURE_FAMILY: &str = "DBFilesClient\\CreatureFamily.dbc";
 const ITEM_PET_FOOD: &str = "DBFilesClient\\ItemPetFood.dbc";
@@ -170,10 +170,12 @@ fn food_schema() -> Schema {
 
 /// Load `CreatureFamily.dbc` from the patch chain.
 pub fn load_creature_families(chain: &mut Chain) -> Result<CreatureFamilies> {
-    let bytes = chain
-        .read_file(CREATURE_FAMILY)
-        .with_context(|| format!("reading {CREATURE_FAMILY}"))?;
-    let rs = parse(&bytes, family_schema(), "CreatureFamily.dbc")?;
+let rs =     crate::dbc::load(
+        chain,
+        CREATURE_FAMILY,
+        family_schema(),
+        "CreatureFamily.dbc",
+    )?;
     let locale = chain.locale();
     let mut by_id = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
@@ -201,10 +203,7 @@ pub fn load_creature_families(chain: &mut Chain) -> Result<CreatureFamilies> {
 
 /// Load `ItemPetFood.dbc` from the patch chain.
 pub fn load_pet_food_names(chain: &mut Chain) -> Result<PetFoodNames> {
-    let bytes = chain
-        .read_file(ITEM_PET_FOOD)
-        .with_context(|| format!("reading {ITEM_PET_FOOD}"))?;
-    let rs = parse(&bytes, food_schema(), "ItemPetFood.dbc")?;
+let rs =     crate::dbc::load(chain, ITEM_PET_FOOD, food_schema(), "ItemPetFood.dbc")?;
     let locale = chain.locale();
     let mut by_id = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {

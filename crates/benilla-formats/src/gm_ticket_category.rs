@@ -4,10 +4,10 @@
 //! clicked button stores it as `HelpFrameOpenTicket.ticketType` and `NewGMTicket` sends it as
 //! `CMSG_GMTICKET_CREATE`'s category, so the file's ids are kept, never renumbered.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{loc_str, parse, u32_at};
+use crate::dbc::{loc_str, u32_at};
 use crate::Chain;
 
 const GM_TICKET_CATEGORY: &str = "DBFilesClient\\GMTicketCategory.dbc";
@@ -54,10 +54,12 @@ fn gm_ticket_category_schema() -> Schema {
 /// Load `GMTicketCategory.dbc` from the patch chain. A row with an empty name is skipped, as it
 /// would paint a dead button; 5875 has none.
 pub fn load_gm_ticket_categories(chain: &mut Chain) -> Result<GmTicketCategoryCatalog> {
-    let bytes = chain
-        .read_file(GM_TICKET_CATEGORY)
-        .with_context(|| format!("reading {GM_TICKET_CATEGORY}"))?;
-    let rs = parse(&bytes, gm_ticket_category_schema(), "GMTicketCategory")?;
+let rs =     crate::dbc::load(
+        chain,
+        GM_TICKET_CATEGORY,
+        gm_ticket_category_schema(),
+        "GMTicketCategory",
+    )?;
     let locale = chain.locale();
     let mut categories = Vec::with_capacity(rs.records().len());
     for r in rs.records() {

@@ -4,10 +4,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
 
 const GAMEOBJECT_DISPLAY_INFO: &str = "DBFilesClient\\GameObjectDisplayInfo.dbc";
 
@@ -47,10 +48,12 @@ fn schema() -> Schema {
 
 /// Load GameObjectDisplayInfo.dbc from the patch chain into a [`GameObjectCatalog`].
 pub fn load_gameobject_catalog(chain: &mut Chain) -> Result<GameObjectCatalog> {
-    let bytes = chain
-        .read_file(GAMEOBJECT_DISPLAY_INFO)
-        .with_context(|| format!("reading {GAMEOBJECT_DISPLAY_INFO}"))?;
-    let rs = parse(&bytes, schema(), "GameObjectDisplayInfo")?;
+    let rs = crate::dbc::load(
+        chain,
+        GAMEOBJECT_DISPLAY_INFO,
+        schema(),
+        "GameObjectDisplayInfo",
+    )?;
     let mut models = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         if let (Some(id), Some(path)) = (u32_at(r, 0), str_at(&rs, r, 1)) {
@@ -89,10 +92,12 @@ impl GameObjectSounds {
 
 /// Load the sound slots off GameObjectDisplayInfo.dbc.
 pub fn load_gameobject_sounds(chain: &mut Chain) -> Result<GameObjectSounds> {
-    let bytes = chain
-        .read_file(GAMEOBJECT_DISPLAY_INFO)
-        .with_context(|| format!("reading {GAMEOBJECT_DISPLAY_INFO}"))?;
-    let rs = parse(&bytes, schema(), "GameObjectDisplayInfo")?;
+    let rs = crate::dbc::load(
+        chain,
+        GAMEOBJECT_DISPLAY_INFO,
+        schema(),
+        "GameObjectDisplayInfo",
+    )?;
     let mut sounds = HashMap::new();
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };

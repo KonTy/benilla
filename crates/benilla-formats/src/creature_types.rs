@@ -7,8 +7,8 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
-use benilla_dbc::{FieldType, Schema, SchemaField};
+use anyhow::Result;
+use benilla_dbc::{FieldType, RecordSet, Schema, SchemaField};
 
 use crate::dbc::{loc_str, parse, u32_at};
 use crate::{Chain, Locale};
@@ -72,24 +72,28 @@ fn creature_type_schema() -> Schema {
 
 /// Load CreatureType.dbc from the patch chain, its names at the chain's locale.
 pub fn load_creature_type_table(chain: &mut Chain) -> Result<CreatureTypeTable> {
-    let bytes = chain
-        .read_file(CREATURE_TYPE)
-        .with_context(|| format!("reading {CREATURE_TYPE}"))?;
-    table_from_bytes(&bytes, chain.locale())
+    let rs = crate::dbc::load(chain, CREATURE_TYPE, creature_type_schema(), "CreatureType")?;
+    Ok(table_from_set(&rs, chain.locale()))
 }
 
-/// The table a `CreatureType.dbc` holds, its names read at `locale`.
-fn table_from_bytes(bytes: &[u8], locale: Locale) -> Result<CreatureTypeTable> {
-    let rs = parse(bytes, creature_type_schema(), "CreatureType")?;
+/// The table a parsed `CreatureType.dbc` holds, its names read at `locale`.
+fn table_from_set(rs: &RecordSet, locale: Locale) -> CreatureTypeTable {
     let mut rows = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         if let Some(id) = u32_at(r, 0) {
-            let name = loc_str(&rs, r, 1, locale).unwrap_or_default();
+            let name = loc_str(rs, r, 1, locale).unwrap_or_default();
             let flags = u32_at(r, 10).unwrap_or(0);
             rows.insert(id, Row { name, flags });
         }
     }
-    Ok(CreatureTypeTable(rows))
+    CreatureTypeTable(rows)
+}
+
+/// The table the `CreatureType.dbc` bytes hold, its names read at `locale`: the tests'
+/// synthetic rows never pass through the patch chain.
+fn table_from_bytes(bytes: &[u8], locale: Locale) -> Result<CreatureTypeTable> {
+    let rs = parse(bytes, creature_type_schema(), "CreatureType")?;
+    Ok(table_from_set(&rs, locale))
 }
 
 #[cfg(test)]

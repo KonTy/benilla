@@ -5,10 +5,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
 
 const ITEM_GROUP_SOUNDS: &str = "DBFilesClient\\ItemGroupSounds.dbc";
 
@@ -57,10 +58,12 @@ fn item_group_sounds_schema() -> Schema {
 
 /// Load `ItemGroupSounds.dbc` off the patch chain.
 pub fn load_item_group_sounds(chain: &mut Chain) -> Result<ItemGroupSoundsCatalog> {
-    let bytes = chain
-        .read_file(ITEM_GROUP_SOUNDS)
-        .with_context(|| format!("reading {ITEM_GROUP_SOUNDS}"))?;
-    let rs = parse(&bytes, item_group_sounds_schema(), "ItemGroupSounds")?;
+    let rs = crate::dbc::load(
+        chain,
+        ITEM_GROUP_SOUNDS,
+        item_group_sounds_schema(),
+        "ItemGroupSounds",
+    )?;
     let mut groups = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };

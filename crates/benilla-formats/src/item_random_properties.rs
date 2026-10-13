@@ -11,10 +11,10 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{loc_str, parse, u32_at};
+use crate::dbc::{loc_str, u32_at};
 
 const ITEM_RANDOM_PROPERTIES: &str = "DBFilesClient\\ItemRandomProperties.dbc";
 
@@ -95,11 +95,9 @@ pub(crate) fn item_random_properties_schema() -> Schema {
 /// Load `ItemRandomProperties.dbc` off the patch chain, dropping a row with no suffix, the
 /// formatter's plain-name exit.
 pub fn load_random_property_catalog(chain: &mut Chain) -> Result<RandomPropertyCatalog> {
-    let bytes = chain
-        .read_file(ITEM_RANDOM_PROPERTIES)
-        .with_context(|| format!("reading {ITEM_RANDOM_PROPERTIES}"))?;
-    let rs = parse(
-        &bytes,
+let rs =     crate::dbc::load(
+        chain,
+        ITEM_RANDOM_PROPERTIES,
         item_random_properties_schema(),
         "ItemRandomProperties",
     )?;

@@ -4,10 +4,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
 
 const CHR_RACES: &str = "DBFilesClient\\ChrRaces.dbc";
 
@@ -32,9 +33,6 @@ impl ExplorationSoundCatalog {
 
 /// Load the race → exploration-sound map off the patch chain.
 pub fn load_exploration_sound_catalog(chain: &mut Chain) -> Result<ExplorationSoundCatalog> {
-    let bytes = chain
-        .read_file(CHR_RACES)
-        .with_context(|| format!("reading {CHR_RACES}"))?;
     let mut schema = Schema::new("ChrRaces");
     for i in 0..29 {
         let ty = match i {
@@ -43,7 +41,7 @@ pub fn load_exploration_sound_catalog(chain: &mut Chain) -> Result<ExplorationSo
         };
         schema.add_field(SchemaField::new(format!("f{i}"), ty));
     }
-    let rs = parse(&bytes, schema, "ChrRaces")?;
+    let rs = crate::dbc::load(chain, CHR_RACES, schema, "ChrRaces")?;
     let mut by_race = HashMap::new();
     for r in rs.records() {
         let (Some(id), Some(kit)) = (u32_at(r, 0), u32_at(r, 3)) else {

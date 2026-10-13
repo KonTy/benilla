@@ -42,10 +42,10 @@ pub use tokens::{substitute, SpellMods, TokenContext, TokenNumber};
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{f32_at, i32_at, loc_str, parse, u32_at};
+use crate::dbc::{f32_at, i32_at, loc_str, u32_at};
 
 const SPELL: &str = "DBFilesClient\\Spell.dbc";
 
@@ -426,9 +426,6 @@ pub fn load_spell_catalog(chain: &mut Chain) -> Result<SpellCatalog> {
     // Categories whose `SpellCategory.dbc` flags carry `0x2` match every cooldown query
     // (`GetCooldownInfo` `0x6e13e0`); only wand Shoot's 351 does.
     let wildcard_categories: std::collections::HashSet<u32> = {
-        let bytes = chain
-            .read_file("DBFilesClient\\SpellCategory.dbc")
-            .context("reading SpellCategory.dbc")?;
         let mut s = benilla_dbc::Schema::new("SpellCategory");
         s.add_field(benilla_dbc::SchemaField::new(
             "ID",
@@ -438,7 +435,12 @@ pub fn load_spell_catalog(chain: &mut Chain) -> Result<SpellCatalog> {
             "Flags",
             benilla_dbc::FieldType::UInt32,
         ));
-        let rs = parse(&bytes, s, "SpellCategory.dbc")?;
+        let rs = crate::dbc::load(
+            chain,
+            "DBFilesClient\\SpellCategory.dbc",
+            s,
+            "SpellCategory.dbc",
+        )?;
         rs.records()
             .iter()
             .filter(|r| u32_at(r, 1).unwrap_or(0) & 0x2 != 0)
@@ -446,8 +448,7 @@ pub fn load_spell_catalog(chain: &mut Chain) -> Result<SpellCatalog> {
             .collect()
     };
 
-    let spell_bytes = chain.read_file(SPELL).context("reading Spell.dbc")?;
-    let spells_set = parse(&spell_bytes, spell_schema(), "Spell.dbc")?;
+    let spells_set = crate::dbc::load(chain, SPELL, spell_schema(), "Spell.dbc")?;
     let locale = chain.locale();
     let mut spells: HashMap<u32, SpellDisplay> = HashMap::new();
     let mut learned_spell: HashMap<u32, u32> = HashMap::new();

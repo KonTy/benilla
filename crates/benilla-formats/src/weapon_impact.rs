@@ -5,10 +5,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
+
 use crate::Chain;
 
 /// The ten target slots, as the shipped kit names pin them.
@@ -64,10 +66,12 @@ fn schema() -> Schema {
 
 /// Read `WeaponImpactSounds.dbc` off the patch chain.
 pub fn load_weapon_impact_catalog(chain: &mut Chain) -> Result<WeaponImpactCatalog> {
-    let bytes = chain
-        .read_file("DBFilesClient\\WeaponImpactSounds.dbc")
-        .context("reading WeaponImpactSounds.dbc")?;
-    let rs = parse(&bytes, schema(), "WeaponImpactSounds")?;
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\WeaponImpactSounds.dbc",
+        schema(),
+        "WeaponImpactSounds",
+    )?;
     let mut rows = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let (Some(subclass), Some(metal)) = (u32_at(r, 1), u32_at(r, 2)) else {

@@ -4,10 +4,10 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{loc_str, parse, u32_at};
+use crate::dbc::{loc_str, u32_at};
 use crate::Chain;
 
 const AUCTION_HOUSE: &str = "DBFilesClient\\AuctionHouse.dbc";
@@ -70,10 +70,7 @@ fn auction_house_schema() -> Schema {
 
 /// Load `AuctionHouse.dbc` from the patch chain.
 pub fn load_auction_houses(chain: &mut Chain) -> Result<AuctionHouseCatalog> {
-    let bytes = chain
-        .read_file(AUCTION_HOUSE)
-        .with_context(|| format!("reading {AUCTION_HOUSE}"))?;
-    let rs = parse(&bytes, auction_house_schema(), "AuctionHouse")?;
+let rs =     crate::dbc::load(chain, AUCTION_HOUSE, auction_house_schema(), "AuctionHouse")?;
     let locale = chain.locale();
     let mut houses = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {

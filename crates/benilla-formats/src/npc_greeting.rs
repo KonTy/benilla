@@ -8,10 +8,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
 
 /// The greeting kit set for one NPC (each a `SoundEntries` kit id; `0` = none).
 #[derive(Clone, Copy, Debug)]
@@ -67,10 +68,12 @@ fn cdi_schema() -> Schema {
 
 /// Read `NPCSounds.dbc` + `CreatureDisplayInfo.dbc` off the patch chain into the joined catalog.
 pub fn load_npc_greeting_catalog(chain: &mut Chain) -> Result<NpcGreetingCatalog> {
-    let bytes = chain
-        .read_file("DBFilesClient\\NPCSounds.dbc")
-        .context("reading NPCSounds.dbc")?;
-    let rs = parse(&bytes, npcsounds_schema(), "NPCSounds")?;
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\NPCSounds.dbc",
+        npcsounds_schema(),
+        "NPCSounds",
+    )?;
     let mut rows = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };
@@ -84,10 +87,12 @@ pub fn load_npc_greeting_catalog(chain: &mut Chain) -> Result<NpcGreetingCatalog
         );
     }
 
-    let bytes = chain
-        .read_file("DBFilesClient\\CreatureDisplayInfo.dbc")
-        .context("reading CreatureDisplayInfo.dbc")?;
-    let rs = parse(&bytes, cdi_schema(), "CreatureDisplayInfo")?;
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\CreatureDisplayInfo.dbc",
+        cdi_schema(),
+        "CreatureDisplayInfo",
+    )?;
     let mut display_to_sound = HashMap::new();
     for r in rs.records() {
         let (Some(id), Some(npc_sound)) = (u32_at(r, 0), u32_at(r, 11)) else {

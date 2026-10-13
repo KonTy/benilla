@@ -3,10 +3,12 @@
 //! (`0x457f8d`) indexes it the same way; this catalog is that cache. `swingType` is the weapon's
 //! `ItemSubClass.WeaponSwingSize`: 0 light, 1 medium, 2 heavy.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
+
 use crate::Chain;
 
 /// The reference's `swingType` bound: the play site (`0x457f63`) and the loader both stop at 3.
@@ -39,10 +41,12 @@ fn schema() -> Schema {
 
 /// Read `WeaponSwingSounds2.dbc` off the patch chain into the reference's cache shape.
 pub fn load_weapon_swing_catalog(chain: &mut Chain) -> Result<WeaponSwingCatalog> {
-    let bytes = chain
-        .read_file("DBFilesClient\\WeaponSwingSounds2.dbc")
-        .context("reading WeaponSwingSounds2.dbc")?;
-    let rs = parse(&bytes, schema(), "WeaponSwingSounds2")?;
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\WeaponSwingSounds2.dbc",
+        schema(),
+        "WeaponSwingSounds2",
+    )?;
     let mut cache = [0u32; SWING_TYPES * 2];
     for r in rs.records() {
         let g = |i: usize| u32_at(r, i).unwrap_or(0);

@@ -15,10 +15,10 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{loc_str, parse, u32_at};
+use crate::dbc::{loc_str, u32_at};
 use crate::Chain;
 
 const SKILL_LINE: &str = "DBFilesClient\\SkillLine.dbc";
@@ -422,11 +422,9 @@ fn skill_line_category_schema() -> Schema {
 fn load_categories(chain: &mut Chain) -> HashMap<u32, (String, u32)> {
     let mut map = HashMap::new();
     let locale = chain.locale();
-    let Ok(bytes) = chain.read_file(SKILL_LINE_CATEGORY) else {
-        return map;
-    };
-    let Ok(set) = parse(
-        &bytes,
+    let Ok(set) = crate::dbc::load(
+        chain,
+        SKILL_LINE_CATEGORY,
         skill_line_category_schema(),
         "SkillLineCategory.dbc",
     ) else {
@@ -452,12 +450,9 @@ fn skill_race_class_info_schema() -> Schema {
 /// `SkillRaceClassInfo.dbc` rows by skill line; an unreadable file gives an empty map.
 fn load_race_class_info(chain: &mut Chain) -> HashMap<u32, Vec<SrciRow>> {
     let mut map: HashMap<u32, Vec<SrciRow>> = HashMap::new();
-    let bytes = match chain.read_file(SKILL_RACE_CLASS_INFO) {
-        Ok(b) => b,
-        Err(_) => return map,
-    };
-    let set = match parse(
-        &bytes,
+    let set = match crate::dbc::load(
+        chain,
+        SKILL_RACE_CLASS_INFO,
         skill_race_class_info_schema(),
         "SkillRaceClassInfo.dbc",
     ) {
@@ -486,10 +481,7 @@ fn load_race_class_info(chain: &mut Chain) -> HashMap<u32, Vec<SrciRow>> {
 pub fn load_skill_line_catalog(chain: &mut Chain) -> Result<SkillLineCatalog> {
     let icons = crate::dbc::load_spell_icon_map(chain)?;
 
-    let sl_bytes = chain
-        .read_file(SKILL_LINE)
-        .context("reading SkillLine.dbc")?;
-    let sl_set = parse(&sl_bytes, skill_line_schema(), "SkillLine.dbc")?;
+    let sl_set = crate::dbc::load(chain, SKILL_LINE, skill_line_schema(), "SkillLine.dbc")?;
     let locale = chain.locale();
     let mut lines: HashMap<u32, SkillLineInfo> = HashMap::new();
     for r in sl_set.records() {
@@ -511,11 +503,9 @@ pub fn load_skill_line_catalog(chain: &mut Chain) -> Result<SkillLineCatalog> {
         );
     }
 
-    let sla_bytes = chain
-        .read_file(SKILL_LINE_ABILITY)
-        .context("reading SkillLineAbility.dbc")?;
-    let sla_set = parse(
-        &sla_bytes,
+    let sla_set = crate::dbc::load(
+        chain,
+        SKILL_LINE_ABILITY,
         skill_line_ability_schema(),
         "SkillLineAbility.dbc",
     )?;

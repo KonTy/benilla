@@ -1,6 +1,7 @@
 //! Tests for the spell visual tables, on synthetic WDBCs and on the installed data.
 
 use super::*;
+use crate::dbc::parse;
 
 /// A WDBC of u32 records with an empty string block.
 fn build_wdbc(record_count: u32, field_count: u32, records: &[u8]) -> Vec<u8> {

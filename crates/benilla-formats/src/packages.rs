@@ -4,11 +4,11 @@
 //! `+8` and the localized name at `+0xc`, `SelectPackage` stores the id at `+0`. 1.12 ships one
 //! row, "Test Package".
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
 use crate::chain::Chain;
-use crate::dbc::{loc_str, parse, str_at, u32_at};
+use crate::dbc::{loc_str, str_at, u32_at};
 
 const PACKAGE: &str = "DBFilesClient\\Package.dbc";
 
@@ -29,7 +29,6 @@ pub struct PackageRow {
 
 /// Load `Package.dbc`'s rows, in file order.
 pub fn load_packages(chain: &mut Chain) -> Result<Vec<PackageRow>> {
-    let bytes = chain.read_file(PACKAGE).context("reading Package.dbc")?;
     let mut schema = Schema::new("Package");
     for i in 0..PACKAGE_FIELDS {
         let ty = if i == 1 || i == 3 {
@@ -39,7 +38,7 @@ pub fn load_packages(chain: &mut Chain) -> Result<Vec<PackageRow>> {
         };
         schema.add_field(SchemaField::new(format!("F{i}"), ty));
     }
-    let set = parse(&bytes, schema, "Package.dbc")?;
+    let set = crate::dbc::load(chain, PACKAGE, schema, "Package.dbc")?;
     let locale = chain.locale();
     Ok(set
         .records()

@@ -8,10 +8,12 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
+
 use crate::terrain::ChunkMesh;
 
 const GROUND_EFFECT_TEXTURE: &str = "DBFilesClient\\GroundEffectTexture.dbc";
@@ -322,10 +324,12 @@ pub fn load_ground_effect_catalog(
 ) -> Result<GroundEffectCatalog> {
     let key_field = if key_by_internal_id { 1 } else { 0 };
     let doodads = {
-        let bytes = chain
-            .read_file(GROUND_EFFECT_DOODAD)
-            .with_context(|| format!("reading {GROUND_EFFECT_DOODAD}"))?;
-        let rs = parse(&bytes, doodad_schema(), "GroundEffectDoodad")?;
+        let rs = crate::dbc::load(
+            chain,
+            GROUND_EFFECT_DOODAD,
+            doodad_schema(),
+            "GroundEffectDoodad",
+        )?;
         let mut m = HashMap::with_capacity(rs.records().len());
         for r in rs.records() {
             if let (Some(id), Some(name)) = (u32_at(r, key_field), str_at(&rs, r, 2)) {
@@ -335,10 +339,12 @@ pub fn load_ground_effect_catalog(
         m
     };
 
-    let bytes = chain
-        .read_file(GROUND_EFFECT_TEXTURE)
-        .with_context(|| format!("reading {GROUND_EFFECT_TEXTURE}"))?;
-    let rs = parse(&bytes, texture_schema(), "GroundEffectTexture")?;
+    let rs = crate::dbc::load(
+        chain,
+        GROUND_EFFECT_TEXTURE,
+        texture_schema(),
+        "GroundEffectTexture",
+    )?;
     let mut effects = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };

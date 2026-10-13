@@ -6,10 +6,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{i32_at, parse, u32_at};
+use crate::dbc::{i32_at, u32_at};
 
 /// One `SpellCastTimes.dbc` row, in ms. All three columns are signed: row 18, the hunter shots',
 /// is `{-1000000, 0, -1000000}`.
@@ -77,9 +78,6 @@ const SPELL_CAST_TIMES_FIELDS: usize = 4;
 
 /// Load `SpellCastTimes.dbc` off the patch chain.
 pub fn load_spell_cast_times(chain: &mut Chain) -> Result<SpellCastTimeCatalog> {
-    let bytes = chain
-        .read_file(SPELL_CAST_TIMES)
-        .context("reading SpellCastTimes.dbc")?;
     let mut schema = Schema::new("SpellCastTimes");
     for i in 0..SPELL_CAST_TIMES_FIELDS {
         match i {
@@ -87,7 +85,7 @@ pub fn load_spell_cast_times(chain: &mut Chain) -> Result<SpellCastTimeCatalog> 
             _ => schema.add_field(SchemaField::new(format!("F{i}"), FieldType::UInt32)),
         }
     }
-    let set = parse(&bytes, schema, "SpellCastTimes.dbc")?;
+    let set = crate::dbc::load(chain, SPELL_CAST_TIMES, schema, "SpellCastTimes.dbc")?;
     let mut times = HashMap::new();
     for r in set.records() {
         let Some(id) = u32_at(r, 0) else { continue };

@@ -15,10 +15,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
 
 const UNIT_BLOOD: &str = "DBFilesClient\\UnitBlood.dbc";
 const UNIT_BLOOD_LEVELS: &str = "DBFilesClient\\UnitBloodLevels.dbc";
@@ -129,10 +130,12 @@ fn unit_blood_schema() -> Schema {
 /// Load both blood tables off the patch chain.
 pub fn load_blood_catalog(chain: &mut Chain) -> Result<BloodCatalog> {
     let (levels, default_level) = {
-        let bytes = chain
-            .read_file(UNIT_BLOOD_LEVELS)
-            .with_context(|| format!("reading {UNIT_BLOOD_LEVELS}"))?;
-        let rs = parse(&bytes, unit_blood_levels_schema(), "UnitBloodLevels")?;
+        let rs = crate::dbc::load(
+            chain,
+            UNIT_BLOOD_LEVELS,
+            unit_blood_levels_schema(),
+            "UnitBloodLevels",
+        )?;
         // File order matters here alone: the third tier returns the records base, row 0, so its
         // id is read before the rows go into the unordered map.
         let default_level = rs.records().first().and_then(|r| u32_at(r, 0));
@@ -152,10 +155,7 @@ pub fn load_blood_catalog(chain: &mut Chain) -> Result<BloodCatalog> {
         (m, default_level)
     };
     let rows = {
-        let bytes = chain
-            .read_file(UNIT_BLOOD)
-            .with_context(|| format!("reading {UNIT_BLOOD}"))?;
-        let rs = parse(&bytes, unit_blood_schema(), "UnitBlood")?;
+        let rs = crate::dbc::load(chain, UNIT_BLOOD, unit_blood_schema(), "UnitBlood")?;
         let mut m = HashMap::with_capacity(rs.records().len());
         for r in rs.records() {
             if let Some(id) = u32_at(r, 0) {

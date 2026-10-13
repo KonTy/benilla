@@ -5,10 +5,10 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{loc_str, parse, u32_at};
+use crate::dbc::{loc_str, u32_at};
 use crate::Chain;
 
 /// One `WMOAreaTable` row's audio fields, `0` for none or inherit.
@@ -147,10 +147,12 @@ fn schema() -> Schema {
 
 /// Read `WMOAreaTable.dbc` off the patch chain.
 pub fn load_wmo_area_catalog(chain: &mut Chain) -> Result<WmoAreaCatalog> {
-    let bytes = chain
-        .read_file("DBFilesClient\\WMOAreaTable.dbc")
-        .context("reading WMOAreaTable.dbc")?;
-    let rs = parse(&bytes, schema(), "WMOAreaTable")?;
+let rs =     crate::dbc::load(
+        chain,
+        "DBFilesClient\\WMOAreaTable.dbc",
+        schema(),
+        "WMOAreaTable",
+    )?;
     let locale = chain.locale();
     let mut groups = HashMap::new();
     let mut defaults = HashMap::new();

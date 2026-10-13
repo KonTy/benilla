@@ -4,10 +4,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{f32_at, parse, u32_at};
+use crate::dbc::{f32_at, u32_at};
 
 /// One `SpellRadius.dbc` row (yards; per-level scaling is 0 on every 5875 row).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -44,15 +45,17 @@ impl SpellRadiusCatalog {
 
 /// Load `SpellRadius.dbc` off the patch chain.
 pub fn load_spell_radii(chain: &mut Chain) -> Result<SpellRadiusCatalog> {
-    let bytes = chain
-        .read_file("DBFilesClient\\SpellRadius.dbc")
-        .context("reading SpellRadius.dbc")?;
     let mut schema = Schema::new("SpellRadius");
     schema.add_field(SchemaField::new("ID", FieldType::UInt32));
     schema.add_field(SchemaField::new("Radius", FieldType::Float32));
     schema.add_field(SchemaField::new("RadiusPerLevel", FieldType::Float32));
     schema.add_field(SchemaField::new("RadiusMax", FieldType::Float32));
-    let set = parse(&bytes, schema, "SpellRadius.dbc")?;
+    let set = crate::dbc::load(
+        chain,
+        "DBFilesClient\\SpellRadius.dbc",
+        schema,
+        "SpellRadius.dbc",
+    )?;
     let mut rows = HashMap::new();
     for r in set.records() {
         let Some(id) = u32_at(r, 0) else { continue };

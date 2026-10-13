@@ -4,10 +4,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
+
 use crate::Chain;
 
 const WORLD_MAP_OVERLAY: &str = "DBFilesClient\\WorldMapOverlay.dbc";
@@ -83,10 +85,7 @@ fn schema() -> Schema {
 
 /// Read `WorldMapOverlay.dbc` off the patch chain into a [`WorldMapOverlayCatalog`].
 pub fn load_world_map_overlay_catalog(chain: &mut Chain) -> Result<WorldMapOverlayCatalog> {
-    let bytes = chain
-        .read_file(WORLD_MAP_OVERLAY)
-        .context("reading WorldMapOverlay.dbc")?;
-    let rs = parse(&bytes, schema(), "WorldMapOverlay")?;
+    let rs = crate::dbc::load(chain, WORLD_MAP_OVERLAY, schema(), "WorldMapOverlay")?;
     let mut by_area: HashMap<u32, Vec<WorldMapOverlay>> = HashMap::new();
     for r in rs.records() {
         let Some(world_map_area_id) = u32_at(r, 1) else {

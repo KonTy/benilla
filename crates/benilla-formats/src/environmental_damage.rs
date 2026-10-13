@@ -3,10 +3,10 @@
 //! 0 exhausted, 1 drowning, 2 fall, 3 lava, 4 slime, 5 fire.
 
 use crate::Chain;
-use anyhow::{Context, Result};
-use benilla_dbc::{FieldType, Schema, SchemaField};
+use anyhow::Result;
+use benilla_dbc::{FieldType, RecordSet, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
 
 const ENVIRONMENTAL_DAMAGE: &str = "DBFilesClient\\EnvironmentalDamage.dbc";
 
@@ -36,14 +36,11 @@ fn schema() -> Schema {
 /// Load the table as the client's init `0x603900` fills it: zeroed, then
 /// `slot[DamageType] = VisualKit` for each row whose type is below 6.
 pub fn load_environmental_damage(chain: &mut Chain) -> Result<EnvironmentalDamageTable> {
-    let bytes = chain
-        .read_file(ENVIRONMENTAL_DAMAGE)
-        .with_context(|| format!("reading {ENVIRONMENTAL_DAMAGE}"))?;
-    table_from(&bytes)
+    let rs = crate::dbc::load(chain, ENVIRONMENTAL_DAMAGE, schema(), "EnvironmentalDamage")?;
+    Ok(table_from(&rs))
 }
 
-fn table_from(bytes: &[u8]) -> Result<EnvironmentalDamageTable> {
-    let rs = parse(bytes, schema(), "EnvironmentalDamage")?;
+fn table_from(rs: &RecordSet) -> EnvironmentalDamageTable {
     let mut kits = [0u32; 6];
     for r in rs.records() {
         if let (Some(ty), Some(kit)) = (u32_at(r, 1), u32_at(r, 2)) {
@@ -52,12 +49,13 @@ fn table_from(bytes: &[u8]) -> Result<EnvironmentalDamageTable> {
             }
         }
     }
-    Ok(EnvironmentalDamageTable { kits })
+    EnvironmentalDamageTable { kits }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dbc::parse;
 
     /// The shipped rows, plus a type-9 row that the range guard must skip.
     #[test]
@@ -84,7 +82,7 @@ mod tests {
         }
         dbc.push(0); // the string block
 
-        let table = table_from(&dbc).unwrap();
+        let table = table_from(&parse(&dbc, schema(), "EnvironmentalDamage").unwrap());
         assert_eq!(table.kit_id(2), Some(1066), "fall → the DustCloud Land kit");
         assert_eq!(table.kit_id(0), Some(871));
         assert_eq!(table.kit_id(5), Some(1067));

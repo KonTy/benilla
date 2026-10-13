@@ -7,7 +7,8 @@ use std::collections::HashMap;
 use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
+
 use crate::Chain;
 
 /// The `(SoundType, FluidSpeed) → SoundEntries kit` map.
@@ -41,8 +42,12 @@ fn schema() -> Schema {
 
 /// Read `SoundWaterType.dbc` off the patch chain.
 pub fn load_water_sound_catalog(chain: &mut Chain) -> Result<WaterSoundCatalog> {
-    let bytes = chain.read_file("DBFilesClient\\SoundWaterType.dbc")?;
-    let rs = parse(&bytes, schema(), "SoundWaterType")?;
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\SoundWaterType.dbc",
+        schema(),
+        "SoundWaterType",
+    )?;
     let mut by_key = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let (Some(class), Some(speed), Some(kit)) = (u32_at(r, 1), u32_at(r, 2), u32_at(r, 3))

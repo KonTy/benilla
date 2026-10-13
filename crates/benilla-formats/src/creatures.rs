@@ -5,10 +5,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{f32_at, parse, str_at, u32_at};
+use crate::dbc::{f32_at, str_at, u32_at};
 
 const CREATURE_MODEL_DATA: &str = "DBFilesClient\\CreatureModelData.dbc";
 const CREATURE_DISPLAY_INFO: &str = "DBFilesClient\\CreatureDisplayInfo.dbc";
@@ -348,10 +349,12 @@ pub(crate) fn creature_display_info_extra_schema() -> Schema {
 /// Load the creature DBCs from the patch chain into a [`CreatureCatalog`].
 pub fn load_creature_catalog(chain: &mut Chain) -> Result<CreatureCatalog> {
     let models = {
-        let bytes = chain
-            .read_file(CREATURE_MODEL_DATA)
-            .with_context(|| format!("reading {CREATURE_MODEL_DATA}"))?;
-        let rs = parse(&bytes, creature_model_data_schema(), "CreatureModelData")?;
+        let rs = crate::dbc::load(
+            chain,
+            CREATURE_MODEL_DATA,
+            creature_model_data_schema(),
+            "CreatureModelData",
+        )?;
         let mut m = HashMap::with_capacity(rs.records().len());
         for r in rs.records() {
             if let (Some(id), Some(name)) = (u32_at(r, 0), str_at(&rs, r, 2)) {
@@ -378,11 +381,9 @@ pub fn load_creature_catalog(chain: &mut Chain) -> Result<CreatureCatalog> {
     };
 
     let display = {
-        let bytes = chain
-            .read_file(CREATURE_DISPLAY_INFO)
-            .with_context(|| format!("reading {CREATURE_DISPLAY_INFO}"))?;
-        let rs = parse(
-            &bytes,
+        let rs = crate::dbc::load(
+            chain,
+            CREATURE_DISPLAY_INFO,
             creature_display_info_schema(),
             "CreatureDisplayInfo",
         )?;
@@ -418,11 +419,9 @@ pub fn load_creature_catalog(chain: &mut Chain) -> Result<CreatureCatalog> {
 
 /// Load CreatureDisplayInfoExtra.dbc: `extendedDisplayInfoId` → [`NpcAppearance`].
 fn load_creature_display_info_extra(chain: &mut Chain) -> Result<HashMap<u32, NpcAppearance>> {
-    let bytes = chain
-        .read_file(CREATURE_DISPLAY_INFO_EXTRA)
-        .with_context(|| format!("reading {CREATURE_DISPLAY_INFO_EXTRA}"))?;
-    let rs = parse(
-        &bytes,
+    let rs = crate::dbc::load(
+        chain,
+        CREATURE_DISPLAY_INFO_EXTRA,
         creature_display_info_extra_schema(),
         "CreatureDisplayInfoExtra",
     )?;

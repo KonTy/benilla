@@ -6,10 +6,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{f32_at, parse, str_at, u32_at};
+use crate::dbc::{f32_at, str_at, u32_at};
+
 use crate::Chain;
 
 const SPELL_CHAIN_EFFECTS: &str = "DBFilesClient\\SpellChainEffects.dbc";
@@ -78,10 +80,12 @@ fn chain_effects_schema() -> Schema {
 /// Read `SpellChainEffects.dbc`; a textureless row stays, as the client's constructor never reads
 /// the texture.
 pub(super) fn load(chain: &mut Chain) -> Result<HashMap<u32, ChainEffect>> {
-    let bytes = chain
-        .read_file(SPELL_CHAIN_EFFECTS)
-        .with_context(|| format!("reading {SPELL_CHAIN_EFFECTS}"))?;
-    let set = parse(&bytes, chain_effects_schema(), "SpellChainEffects.dbc")?;
+    let set = crate::dbc::load(
+        chain,
+        SPELL_CHAIN_EFFECTS,
+        chain_effects_schema(),
+        "SpellChainEffects.dbc",
+    )?;
     let mut rows = HashMap::with_capacity(set.records().len());
     for r in set.records() {
         let Some(id) = u32_at(r, 0) else { continue };

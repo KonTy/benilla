@@ -4,10 +4,10 @@
 //! realm's wire category byte is matched against, and the row's localized name is the tab's
 //! label (`GetRealmCategories`, `0x46f238`).
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{loc_str, parse, u32_at};
+use crate::dbc::{loc_str, u32_at};
 use crate::Chain;
 
 const CFG_CATEGORIES: &str = "DBFilesClient\\Cfg_Categories.dbc";
@@ -37,10 +37,12 @@ fn cfg_categories_schema() -> Schema {
 /// The categories of `region`, in file order (`0x46e3b1`: a row joins when its column 1 equals
 /// the Region). A Region no row names yields none.
 pub fn load_realm_categories(chain: &mut Chain, region: u32) -> Result<Vec<RealmCategory>> {
-    let bytes = chain
-        .read_file(CFG_CATEGORIES)
-        .with_context(|| format!("reading {CFG_CATEGORIES}"))?;
-    let rs = parse(&bytes, cfg_categories_schema(), "Cfg_Categories")?;
+let rs =     crate::dbc::load(
+        chain,
+        CFG_CATEGORIES,
+        cfg_categories_schema(),
+        "Cfg_Categories",
+    )?;
     let locale = chain.locale();
     Ok(rs
         .records()

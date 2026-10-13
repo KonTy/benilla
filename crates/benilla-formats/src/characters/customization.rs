@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::{bail, Context, Result};
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{loc_str, parse, str_at, u32_at};
+use crate::dbc::{loc_str, str_at, u32_at};
 use crate::Chain;
 
 const CHR_RACES: &str = "DBFilesClient\\ChrRaces.dbc";
@@ -367,9 +367,6 @@ fn load_races(
     HashMap<u8, String>,
     HashMap<u8, ([String; 2], String)>,
 )> {
-    let bytes = chain
-        .read_file(CHR_RACES)
-        .with_context(|| format!("reading {CHR_RACES}"))?;
     let mut schema = Schema::new("ChrRaces");
     for i in 0..29 {
         let ty = match i {
@@ -378,7 +375,7 @@ fn load_races(
         };
         schema.add_field(SchemaField::new(format!("f{i}"), ty));
     }
-    let rs = parse(&bytes, schema, "ChrRaces")?;
+    let rs = crate::dbc::load(chain, CHR_RACES, schema, "ChrRaces")?;
     let locale = chain.locale();
     let mut rows = Vec::new();
     let mut displays = HashMap::new();
@@ -440,9 +437,6 @@ fn load_base_info(chain: &mut Chain) -> Result<Vec<(u8, u8)>> {
 
 /// NameGen (4 fields: ID, Name, RaceID, Sex) → its rows in file order.
 fn load_name_gen(chain: &mut Chain) -> Result<Vec<NameGenRow>> {
-    let bytes = chain
-        .read_file(NAME_GEN)
-        .with_context(|| format!("reading {NAME_GEN}"))?;
     let mut schema = Schema::new("NameGen");
     for (name, ty) in [
         ("ID", FieldType::UInt32),
@@ -452,7 +446,7 @@ fn load_name_gen(chain: &mut Chain) -> Result<Vec<NameGenRow>> {
     ] {
         schema.add_field(SchemaField::new(name, ty));
     }
-    let rs = parse(&bytes, schema, "NameGen")?;
+    let rs = crate::dbc::load(chain, NAME_GEN, schema, "NameGen")?;
     Ok(rs
         .records()
         .iter()
@@ -514,11 +508,8 @@ fn load_start_outfits(chain: &mut Chain) -> Result<HashMap<(u8, u8, u8), Vec<Sta
 /// CharSections → the selectable keys, rows without flag `0x1` (`SECTION_FLAG_UNAVAILABLE`): the
 /// domain vmangos's `GetCharSectionEntry` searches.
 fn load_available_sections(chain: &mut Chain) -> Result<HashSet<SectionKey>> {
-    let bytes = chain
-        .read_file(CHAR_SECTIONS)
-        .with_context(|| format!("reading {CHAR_SECTIONS}"))?;
     // 10 fields (ID, Race, Sex, SectionType, Variation, Color, Tex0-2, Flags); we read the ints.
-    let rs = parse(&bytes, all_u32_schema("CharSections", 10), "CharSections")?;
+    let rs = crate::dbc::load(chain, CHAR_SECTIONS, all_u32_schema("CharSections", 10), "CharSections")?;
     let mut avail = HashSet::new();
     for r in rs.records() {
         if let (Some(race), Some(sex), Some(ty), Some(var), Some(color), Some(flags)) = (
@@ -539,11 +530,9 @@ fn load_available_sections(chain: &mut Chain) -> Result<HashSet<SectionKey>> {
 
 /// CharacterFacialHairStyles → (race, sex) → variations, keyed on cols 0/1/2 as `0x478740` does.
 fn load_facial_hair_styles(chain: &mut Chain) -> Result<HashMap<(u8, u8), HashSet<u8>>> {
-    let bytes = chain
-        .read_file(CHAR_FACIAL_HAIR_STYLES)
-        .with_context(|| format!("reading {CHAR_FACIAL_HAIR_STYLES}"))?;
-    let rs = parse(
-        &bytes,
+    let rs = crate::dbc::load(
+        chain,
+        CHAR_FACIAL_HAIR_STYLES,
         all_u32_schema("CharacterFacialHairStyles", 9),
         "CharacterFacialHairStyles",
     )?;

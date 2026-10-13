@@ -7,10 +7,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
+
 use crate::Chain;
 
 /// `Material.dbc` keyed by id.
@@ -69,10 +71,7 @@ fn schema() -> Schema {
 
 /// Read `Material.dbc` off the patch chain.
 pub fn load_material_catalog(chain: &mut Chain) -> Result<MaterialCatalog> {
-    let bytes = chain
-        .read_file("DBFilesClient\\Material.dbc")
-        .context("reading Material.dbc")?;
-    let rs = parse(&bytes, schema(), "Material")?;
+    let rs = crate::dbc::load(chain, "DBFilesClient\\Material.dbc", schema(), "Material")?;
     let mut foley = HashMap::with_capacity(rs.records().len());
     let mut flags = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {

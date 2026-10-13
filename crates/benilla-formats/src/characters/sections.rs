@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
+
 use crate::items::ItemDisplay;
 use crate::{read_texture_mip_chain, BlpMipChain, Chain};
 
@@ -231,10 +233,7 @@ impl CharSections {
 
     /// Load CharSections.dbc from the patch chain.
     pub fn load(chain: &mut Chain) -> Result<Self> {
-        let bytes = chain
-            .read_file(CHAR_SECTIONS)
-            .with_context(|| format!("reading {CHAR_SECTIONS}"))?;
-        let rs = parse(&bytes, char_sections_schema(), "CharSections")?;
+        let rs = crate::dbc::load(chain, CHAR_SECTIONS, char_sections_schema(), "CharSections")?;
         let mut sections = HashMap::with_capacity(rs.records().len());
         for r in rs.records() {
             // fields: ID, Race, Sex, SectionType, Variation, Color, Tex0, Tex1, Tex2, Flags.
