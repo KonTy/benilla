@@ -76,7 +76,14 @@ fn open_dbfiles(data_dir: &Path) -> Option<DbFiles> {
         return None;
     }
     match DbFiles::open(&path) {
-        Ok(db) => Some(db),
+        Ok(db) => {
+            eprintln!(
+                "benilla: adopting {} as a DBC source ({} tables)",
+                path.display(),
+                db.table_count()
+            );
+            Some(db)
+        }
         Err(e) => {
             eprintln!(
                 "benilla: skipping {} as a DBC source: {e:#}",
