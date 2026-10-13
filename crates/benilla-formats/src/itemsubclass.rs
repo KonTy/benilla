@@ -4,10 +4,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{i32_at, parse, u32_at};
+use crate::dbc::{i32_at, u32_at};
+
 use crate::Chain;
 
 const ITEM_SUB_CLASS: &str = "DBFilesClient\\ItemSubClass.dbc";
@@ -211,15 +213,15 @@ fn item_sub_class_mask_schema() -> Schema {
 
 /// Load `ItemSubClass.dbc` and the `ItemSubClassMask.dbc` group names off the patch chain.
 pub fn load_item_sub_classes(chain: &mut Chain) -> Result<ItemSubClassCatalog> {
-    let bytes = chain
-        .read_file(ITEM_SUB_CLASS)
-        .with_context(|| format!("reading {ITEM_SUB_CLASS}"))?;
-    let rs = parse(&bytes, item_sub_class_schema(), "ItemSubClass")?;
-    let mask_bytes = chain
-        .read_file(ITEM_SUB_CLASS_MASK)
-        .with_context(|| format!("reading {ITEM_SUB_CLASS_MASK}"))?;
-    let mask_rs = parse(
-        &mask_bytes,
+    let rs = crate::dbc::load(
+        chain,
+        ITEM_SUB_CLASS,
+        item_sub_class_schema(),
+        "ItemSubClass",
+    )?;
+    let mask_rs = crate::dbc::load(
+        chain,
+        ITEM_SUB_CLASS_MASK,
         item_sub_class_mask_schema(),
         "ItemSubClassMask",
     )?;

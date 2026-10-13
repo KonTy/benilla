@@ -4,11 +4,12 @@
 //! `0x49dff0`), or copies the row when the text is empty (`0x49dfc8`, `0x64a5a0`). The ids are
 //! vmangos's `ServerMessageType` (`World.h:62`).
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
 use crate::chain::Chain;
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
 
 const SERVER_MESSAGES: &str = "DBFilesClient\\ServerMessages.dbc";
 
@@ -64,10 +65,7 @@ fn schema() -> Schema {
 }
 
 pub fn load_server_messages_catalog(chain: &mut Chain) -> Result<ServerMessagesCatalog> {
-    let bytes = chain
-        .read_file(SERVER_MESSAGES)
-        .context("reading ServerMessages.dbc")?;
-    let rs = parse(&bytes, schema(), "ServerMessages")?;
+    let rs = crate::dbc::load(chain, SERVER_MESSAGES, schema(), "ServerMessages")?;
     let mut rows = Vec::with_capacity(rs.records().len());
     for r in rs.records() {
         let (Some(id), Some(text)) = (u32_at(r, 0), str_at(&rs, r, 1)) else {

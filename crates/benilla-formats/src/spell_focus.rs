@@ -4,10 +4,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
+
 use crate::Chain;
 
 const SPELL_FOCUS_OBJECT: &str = "DBFilesClient\\SpellFocusObject.dbc";
@@ -49,10 +51,7 @@ fn schema() -> Schema {
 
 /// Load SpellFocusObject.dbc from the patch chain into a [`SpellFocusCatalog`].
 pub fn load_spell_focus_catalog(chain: &mut Chain) -> Result<SpellFocusCatalog> {
-    let bytes = chain
-        .read_file(SPELL_FOCUS_OBJECT)
-        .with_context(|| format!("reading {SPELL_FOCUS_OBJECT}"))?;
-    let rs = parse(&bytes, schema(), "SpellFocusObject.dbc")?;
+    let rs = crate::dbc::load(chain, SPELL_FOCUS_OBJECT, schema(), "SpellFocusObject.dbc")?;
     let mut names = HashMap::new();
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };

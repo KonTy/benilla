@@ -5,10 +5,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
+
 use crate::Chain;
 
 const ITEM_CLASS: &str = "DBFilesClient\\ItemClass.dbc";
@@ -47,10 +49,7 @@ fn item_class_schema() -> Schema {
 
 /// Load ItemClass.dbc from the patch chain.
 pub fn load_item_classes(chain: &mut Chain) -> Result<ItemClassCatalog> {
-    let bytes = chain
-        .read_file(ITEM_CLASS)
-        .with_context(|| format!("reading {ITEM_CLASS}"))?;
-    let rs = parse(&bytes, item_class_schema(), "ItemClass")?;
+    let rs = crate::dbc::load(chain, ITEM_CLASS, item_class_schema(), "ItemClass")?;
     let mut names = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let (Some(id), Some(name)) = (u32_at(r, 0), str_at(&rs, r, 3).filter(|n| !n.is_empty()))

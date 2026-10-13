@@ -4,11 +4,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
 use crate::chain::Chain;
-use crate::dbc::{f32_at, parse, u32_at};
+use crate::dbc::{f32_at, u32_at};
 
 const AREA_TRIGGER: &str = "DBFilesClient\\AreaTrigger.dbc";
 
@@ -113,10 +114,7 @@ pub fn area_trigger_schema() -> Schema {
 
 /// Read `AreaTrigger.dbc` off the patch chain into an [`AreaTriggerCatalog`].
 pub fn load_area_trigger_catalog(chain: &mut Chain) -> Result<AreaTriggerCatalog> {
-    let bytes = chain
-        .read_file(AREA_TRIGGER)
-        .context("reading AreaTrigger.dbc")?;
-    let rs = parse(&bytes, area_trigger_schema(), "AreaTrigger")?;
+    let rs = crate::dbc::load(chain, AREA_TRIGGER, area_trigger_schema(), "AreaTrigger")?;
     let mut by_map: HashMap<u32, Vec<AreaTriggerRow>> = HashMap::new();
     let mut len = 0;
     for r in rs.records() {

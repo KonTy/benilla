@@ -7,9 +7,11 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{f32_at, i32_at, parse, str_at, u32_at};
+use crate::dbc::{f32_at, i32_at, str_at, u32_at};
+
 use crate::Chain;
 
 pub mod chain_effects;
@@ -462,11 +464,9 @@ fn some_unless_none(v: u32) -> Option<u32> {
 
 /// Read the four spell visual tables off the patch chain.
 pub fn load_spell_visual_catalog(chain: &mut Chain) -> Result<SpellVisualCatalog> {
-    let sv_bytes = chain
-        .read_file(SPELL_VISUAL)
-        .context("reading SpellVisual.dbc")?;
-    let sv_set = parse(
-        &sv_bytes,
+    let sv_set = crate::dbc::load(
+        chain,
+        SPELL_VISUAL,
         n_u32_schema("SpellVisual", SPELL_VISUAL_FIELDS),
         "SpellVisual.dbc",
     )?;
@@ -494,10 +494,7 @@ pub fn load_spell_visual_catalog(chain: &mut Chain) -> Result<SpellVisualCatalog
         );
     }
 
-    let svk_bytes = chain
-        .read_file(SPELL_VISUAL_KIT)
-        .context("reading SpellVisualKit.dbc")?;
-    let svk_set = parse(&svk_bytes, kit_schema(), "SpellVisualKit.dbc")?;
+    let svk_set = crate::dbc::load(chain, SPELL_VISUAL_KIT, kit_schema(), "SpellVisualKit.dbc")?;
     let mut kits = HashMap::with_capacity(svk_set.records().len());
     for r in svk_set.records() {
         let Some(id) = u32_at(r, 0) else { continue };
@@ -524,11 +521,9 @@ pub fn load_spell_visual_catalog(chain: &mut Chain) -> Result<SpellVisualCatalog
         );
     }
 
-    let sven_bytes = chain
-        .read_file(SPELL_VISUAL_EFFECT_NAME)
-        .context("reading SpellVisualEffectName.dbc")?;
-    let sven_set = parse(
-        &sven_bytes,
+    let sven_set = crate::dbc::load(
+        chain,
+        SPELL_VISUAL_EFFECT_NAME,
         effect_name_schema(),
         "SpellVisualEffectName.dbc",
     )?;

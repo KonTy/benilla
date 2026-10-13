@@ -7,10 +7,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
 
 const LOCK_TYPE: &str = "DBFilesClient\\LockType.dbc";
 /// The file's column count, which `benilla-dbc` checks against the header.
@@ -64,10 +65,7 @@ fn schema() -> Schema {
 
 /// Load `LockType.dbc` from the patch chain into a [`LockTypeCatalog`].
 pub fn load_lock_type_catalog(chain: &mut Chain) -> Result<LockTypeCatalog> {
-    let bytes = chain
-        .read_file(LOCK_TYPE)
-        .with_context(|| format!("reading {LOCK_TYPE}"))?;
-    let rs = parse(&bytes, schema(), "LockType.dbc")?;
+    let rs = crate::dbc::load(chain, LOCK_TYPE, schema(), "LockType.dbc")?;
     let mut cursors = HashMap::new();
     let mut names = HashMap::new();
     for r in rs.records() {

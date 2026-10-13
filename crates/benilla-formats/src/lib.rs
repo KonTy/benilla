@@ -13,6 +13,8 @@ pub use benilla_blp::BlpTexels;
 
 mod chain;
 pub use chain::{Chain, ChainEntry};
+/// The `Data` folder's `DBFilesClient` sqlite file: the DBC tables' faster home, and its dumper.
+pub mod dbfiles;
 /// Loose `.tga` art, as addon folders ship it.
 mod tga;
 pub use tga::tga_to_rgba;

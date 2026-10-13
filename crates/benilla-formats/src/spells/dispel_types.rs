@@ -7,10 +7,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
 
 /// The named dispel classes by `Spell.dbc` `Dispel` id; a row the gate withholds is absent.
 #[derive(Default)]
@@ -35,9 +36,6 @@ impl SpellDispelTypes {
 
 /// Load `SpellDispelType.dbc` off the patch chain, keeping only the rows the gate names.
 pub fn load_spell_dispel_types(chain: &mut Chain) -> Result<SpellDispelTypes> {
-    let bytes = chain
-        .read_file("DBFilesClient\\SpellDispelType.dbc")
-        .context("reading SpellDispelType.dbc")?;
     let mut schema = Schema::new("SpellDispelType");
     schema.add_field(SchemaField::new("ID", FieldType::UInt32));
     for i in 0..8 {
@@ -46,7 +44,12 @@ pub fn load_spell_dispel_types(chain: &mut Chain) -> Result<SpellDispelTypes> {
     schema.add_field(SchemaField::new("NameFlags", FieldType::UInt32));
     schema.add_field(SchemaField::new("Named", FieldType::UInt32));
     schema.add_field(SchemaField::new("Unknown11", FieldType::String));
-    let set = parse(&bytes, schema, "SpellDispelType.dbc")?;
+    let set = crate::dbc::load(
+        chain,
+        "DBFilesClient\\SpellDispelType.dbc",
+        schema,
+        "SpellDispelType.dbc",
+    )?;
     let mut names = HashMap::new();
     for r in set.records() {
         let Some(id) = u32_at(r, 0) else { continue };

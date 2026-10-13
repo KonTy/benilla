@@ -4,10 +4,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
+
 use crate::Chain;
 
 const SPELL_MECHANIC: &str = "DBFilesClient\\SpellMechanic.dbc";
@@ -49,10 +51,7 @@ fn schema() -> Schema {
 
 /// Load SpellMechanic.dbc from the patch chain into a [`SpellMechanicCatalog`].
 pub fn load_spell_mechanic_catalog(chain: &mut Chain) -> Result<SpellMechanicCatalog> {
-    let bytes = chain
-        .read_file(SPELL_MECHANIC)
-        .with_context(|| format!("reading {SPELL_MECHANIC}"))?;
-    let rs = parse(&bytes, schema(), "SpellMechanic.dbc")?;
+    let rs = crate::dbc::load(chain, SPELL_MECHANIC, schema(), "SpellMechanic.dbc")?;
     let mut names = HashMap::new();
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };

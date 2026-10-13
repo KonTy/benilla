@@ -7,11 +7,12 @@
 //! `SpamMessages`, and the names carry no locale (`0x858348`, `0x859a84`), so a locale build
 //! overrides them at the archive.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
 use crate::chain::Chain;
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
 
 const CHAT_PROFANITY: &str = "DBFilesClient\\ChatProfanity.dbc";
 const SPAM_MESSAGES: &str = "DBFilesClient\\SpamMessages.dbc";
@@ -33,10 +34,7 @@ fn schema(name: &str) -> Schema {
 }
 
 fn load(chain: &mut Chain, path: &str, name: &str) -> Result<Vec<FilterPattern>> {
-    let bytes = chain
-        .read_file(path)
-        .with_context(|| format!("reading {name}.dbc"))?;
-    let rs = parse(&bytes, schema(name), name)?;
+    let rs = crate::dbc::load(chain, path, schema(name), name)?;
     let mut out = Vec::with_capacity(rs.records().len());
     for r in rs.records() {
         // File order is the list order, which masking depends on: patterns apply in list order,

@@ -3,10 +3,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{f32_at, parse, u32_at};
+use crate::dbc::{f32_at, u32_at};
+
 use crate::Chain;
 
 /// Half-minutes in a game day (band time axis); `1440` = noon.
@@ -97,10 +99,7 @@ pub(super) fn load_bands(
     path: &str,
     schema: Schema,
 ) -> Result<HashMap<u32, Band<u32>>> {
-    let bytes = chain
-        .read_file(path)
-        .with_context(|| format!("reading {path}"))?;
-    let rs = parse(&bytes, schema, path)?;
+    let rs = crate::dbc::load(chain, path, schema, path)?;
     let mut m = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let (Some(id), Some(num)) = (u32_at(r, 0), u32_at(r, 1)) else {
@@ -119,10 +118,7 @@ pub(super) fn load_float_bands(
     path: &str,
     schema: Schema,
 ) -> Result<HashMap<u32, Band<f32>>> {
-    let bytes = chain
-        .read_file(path)
-        .with_context(|| format!("reading {path}"))?;
-    let rs = parse(&bytes, schema, path)?;
+    let rs = crate::dbc::load(chain, path, schema, path)?;
     let mut m = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let (Some(id), Some(num)) = (u32_at(r, 0), u32_at(r, 1)) else {

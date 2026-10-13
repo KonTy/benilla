@@ -10,8 +10,10 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use anyhow::{anyhow, bail, Context, Result};
+use benilla_dbc::{RecordSet, Schema};
 use benilla_mpq::Archive;
 
+use crate::dbfiles::{DbFiles, FILE_NAME};
 use crate::VANILLA_BASE_ORDER;
 
 /// One entry from a chain listing: an internal path and its uncompressed size.
@@ -21,9 +23,13 @@ pub struct ChainEntry {
 }
 
 /// A priority-ordered patch chain of MPQ archives (`Send + Sync`; reads are `&self` and lock-free).
+/// A `Data` folder carries its `DBFilesClient` sqlite file too, when present: DBC reads prefer a
+/// matching table over the patch chain's file.
 pub struct Chain {
     /// Ascending priority: later archives win.
     archives: Vec<Archive>,
+    /// The `Data` folder's `DBFilesClient` file: `None` for a single-MPQ chain or an absent file.
+    dbfiles: Option<DbFiles>,
 }
 
 /// `patch-?.MPQ` as the reference's `FindFirstFileW` glob matches it (template `0x82edbc`, wrapper
@@ -72,6 +78,26 @@ fn mount_order(dir_names: &[String]) -> Vec<String> {
     order.extend(patches);
     order.extend(find("speech2.MPQ"));
     order
+}
+
+/// The `Data` folder's `DBFilesClient` sqlite file, when one is present: an absent file is a
+/// quiet `None`; one that fails to open is skipped with a note, so a broken override never takes
+/// the DBCs down with it.
+fn open_dbfiles(data_dir: &Path) -> Option<DbFiles> {
+    let path = data_dir.join(FILE_NAME);
+    if !path.is_file() {
+        return None;
+    }
+    match DbFiles::open(&path) {
+        Ok(db) => Some(db),
+        Err(e) => {
+            eprintln!(
+                "benilla: skipping {} as a DBC source: {e:#}",
+                path.display()
+            );
+            None
+        }
+    }
 }
 
 impl Chain {
@@ -152,12 +178,17 @@ impl Chain {
             if archives.is_empty() {
                 bail!("no known vanilla archives found in {}", path.display());
             }
+            let dbfiles = open_dbfiles(path);
+            Ok(Self { archives, dbfiles })
         } else {
             archives.push(
                 Archive::open(path).with_context(|| format!("opening MPQ {}", path.display()))?,
             );
+            Ok(Self {
+                archives,
+                dbfiles: None,
+            })
         }
-        Ok(Self { archives })
     }
 
     /// The highest-priority archive with an entry for `name`, a delete marker included, as a
@@ -204,6 +235,12 @@ impl Chain {
     /// `&mut` alias of [`Chain::read`] for call sites that thread a `&mut Chain`.
     pub fn read_file(&mut self, name: &str) -> Result<Vec<u8>> {
         self.read(name)
+    }
+
+    /// A DBC path's records from the `DBFilesClient` table, when the chain carries one, the table
+    /// exists and matches `schema`: `None` otherwise, so the caller reads the DBC file as usual.
+    pub fn dbc_record_set(&self, path: &str, schema: &Schema) -> Option<RecordSet> {
+        self.dbfiles.as_ref()?.record_set(self, path, schema)
     }
 
     /// The chain's named files with sizes, for development and extraction; a file in no listfile

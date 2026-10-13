@@ -11,10 +11,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
 
 /// The joined footstep tables, resolvable from `(footstep class, ground effect id)`.
 pub struct FootstepCatalog {
@@ -95,11 +96,9 @@ fn n_u32_schema(name: &str, n: usize, string_fields: &[usize]) -> Schema {
 
 /// Read the three tables off the patch chain.
 pub fn load_footstep_catalog(chain: &mut Chain) -> Result<FootstepCatalog> {
-    let bytes = chain
-        .read_file("DBFilesClient\\GroundEffectTexture.dbc")
-        .context("reading GroundEffectTexture.dbc")?;
-    let rs = parse(
-        &bytes,
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\GroundEffectTexture.dbc",
         n_u32_schema("GroundEffectTexture", 7, &[]),
         "GroundEffectTexture",
     )?;
@@ -110,10 +109,12 @@ pub fn load_footstep_catalog(chain: &mut Chain) -> Result<FootstepCatalog> {
         }
     }
 
-    let bytes = chain
-        .read_file("DBFilesClient\\TerrainType.dbc")
-        .context("reading TerrainType.dbc")?;
-    let rs = parse(&bytes, n_u32_schema("TerrainType", 6, &[1]), "TerrainType")?;
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\TerrainType.dbc",
+        n_u32_schema("TerrainType", 6, &[1]),
+        "TerrainType",
+    )?;
     let mut terrain_sound = HashMap::with_capacity(rs.records().len());
     let mut terrain_flags = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
@@ -125,11 +126,9 @@ pub fn load_footstep_catalog(chain: &mut Chain) -> Result<FootstepCatalog> {
         }
     }
 
-    let bytes = chain
-        .read_file("DBFilesClient\\FootstepTerrainLookup.dbc")
-        .context("reading FootstepTerrainLookup.dbc")?;
-    let rs = parse(
-        &bytes,
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\FootstepTerrainLookup.dbc",
         n_u32_schema("FootstepTerrainLookup", 5, &[]),
         "FootstepTerrainLookup",
     )?;
@@ -155,11 +154,9 @@ pub fn load_footstep_catalog(chain: &mut Chain) -> Result<FootstepCatalog> {
 /// `FootprintTextures.dbc`, id → extensionless texture path (`textures\Footsteps\BaseFootprint`),
 /// the table `CreatureModelData.FootprintTextureID` indexes.
 pub fn load_footprint_textures(chain: &mut Chain) -> Result<HashMap<u32, String>> {
-    let bytes = chain
-        .read_file("DBFilesClient\\FootprintTextures.dbc")
-        .context("reading FootprintTextures.dbc")?;
-    let rs = parse(
-        &bytes,
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\FootprintTextures.dbc",
         n_u32_schema("FootprintTextures", 2, &[1]),
         "FootprintTextures",
     )?;

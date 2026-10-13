@@ -9,10 +9,11 @@
 //! `0xFFFF_FFFF` misses in the kit lookup (`0x45cda0`), so that line is silent.
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
 
 const VOCAL_UI_SOUNDS: &str = "DBFilesClient\\VocalUISounds.dbc";
 
@@ -77,14 +78,11 @@ impl VocalUiSoundCatalog {
 /// Load `VocalUISounds.dbc` off the patch chain, dropping the rows the reference's builder drops
 /// (`VocalUIEnum >= 0x44`).
 pub fn load_vocal_ui_sounds(chain: &mut Chain) -> Result<VocalUiSoundCatalog> {
-    let bytes = chain
-        .read_file(VOCAL_UI_SOUNDS)
-        .with_context(|| format!("reading {VOCAL_UI_SOUNDS}"))?;
     let mut schema = Schema::new("VocalUISounds");
     for i in 0..7 {
         schema.add_field(SchemaField::new(format!("f{i}"), FieldType::UInt32));
     }
-    let rs = parse(&bytes, schema, "VocalUISounds")?;
+    let rs = crate::dbc::load(chain, VOCAL_UI_SOUNDS, schema, "VocalUISounds")?;
     let mut rows = Vec::new();
     for r in rs.records() {
         let (Some(id), Some(line), Some(race)) = (u32_at(r, 0), u32_at(r, 1), u32_at(r, 2)) else {

@@ -9,10 +9,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
 
 const LOCK: &str = "DBFilesClient\\Lock.dbc";
 /// The column count, which `benilla-dbc` checks against the header.
@@ -134,10 +135,7 @@ fn schema() -> Schema {
 
 /// Load `Lock.dbc` off the patch chain.
 pub fn load_lock_catalog(chain: &mut Chain) -> Result<LockCatalog> {
-    let bytes = chain
-        .read_file(LOCK)
-        .with_context(|| format!("reading {LOCK}"))?;
-    let rs = parse(&bytes, schema(), "Lock.dbc")?;
+    let rs = crate::dbc::load(chain, LOCK, schema(), "Lock.dbc")?;
     let mut locks = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };

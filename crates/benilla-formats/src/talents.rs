@@ -8,10 +8,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
+
 use crate::Chain;
 
 const TALENT: &str = "DBFilesClient\\Talent.dbc";
@@ -144,10 +146,7 @@ fn talent_tab_schema() -> Schema {
 
 /// Load both tables off the patch chain.
 pub fn load_talent_catalog(chain: &mut Chain) -> Result<TalentCatalog> {
-    let tab_bytes = chain
-        .read_file(TALENT_TAB)
-        .context("reading TalentTab.dbc")?;
-    let tab_set = parse(&tab_bytes, talent_tab_schema(), "TalentTab.dbc")?;
+    let tab_set = crate::dbc::load(chain, TALENT_TAB, talent_tab_schema(), "TalentTab.dbc")?;
     let mut tabs = Vec::new();
     for r in tab_set.records() {
         let Some(id) = u32_at(r, 0) else { continue };
@@ -160,8 +159,7 @@ pub fn load_talent_catalog(chain: &mut Chain) -> Result<TalentCatalog> {
         });
     }
 
-    let t_bytes = chain.read_file(TALENT).context("reading Talent.dbc")?;
-    let t_set = parse(&t_bytes, talent_schema(), "Talent.dbc")?;
+    let t_set = crate::dbc::load(chain, TALENT, talent_schema(), "Talent.dbc")?;
     let mut by_tab: HashMap<u32, Vec<Talent>> = HashMap::new();
     for r in t_set.records() {
         let Some(id) = u32_at(r, 0) else { continue };

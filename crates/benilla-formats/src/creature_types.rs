@@ -4,10 +4,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
+
 use crate::Chain;
 
 const CREATURE_TYPE: &str = "DBFilesClient\\CreatureType.dbc";
@@ -44,10 +46,7 @@ fn creature_type_schema() -> Schema {
 
 /// Load CreatureType.dbc from the patch chain.
 pub fn load_creature_type_flags(chain: &mut Chain) -> Result<CreatureTypeFlags> {
-    let bytes = chain
-        .read_file(CREATURE_TYPE)
-        .with_context(|| format!("reading {CREATURE_TYPE}"))?;
-    let rs = parse(&bytes, creature_type_schema(), "CreatureType")?;
+    let rs = crate::dbc::load(chain, CREATURE_TYPE, creature_type_schema(), "CreatureType")?;
     let mut flags = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         if let Some(id) = u32_at(r, 0) {

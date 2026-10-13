@@ -8,10 +8,11 @@
 use std::collections::{BTreeSet, HashMap};
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
 
 /// `DeathThudLookups.dbc` joined with the `TerrainTypeSounds.dbc` id domain.
 pub struct DeathThudCatalog {
@@ -66,21 +67,17 @@ fn n_u32_schema(name: &str, n: usize) -> Schema {
 
 /// Read the two tables off the patch chain.
 pub fn load_death_thud_catalog(chain: &mut Chain) -> Result<DeathThudCatalog> {
-    let bytes = chain
-        .read_file("DBFilesClient\\TerrainTypeSounds.dbc")
-        .context("reading TerrainTypeSounds.dbc")?;
-    let rs = parse(
-        &bytes,
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\TerrainTypeSounds.dbc",
         n_u32_schema("TerrainTypeSounds", 1),
         "TerrainTypeSounds",
     )?;
     let terrain_sounds: BTreeSet<u32> = rs.records().iter().filter_map(|r| u32_at(r, 0)).collect();
 
-    let bytes = chain
-        .read_file("DBFilesClient\\DeathThudLookups.dbc")
-        .context("reading DeathThudLookups.dbc")?;
-    let rs = parse(
-        &bytes,
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\DeathThudLookups.dbc",
         n_u32_schema("DeathThudLookups", 5),
         "DeathThudLookups",
     )?;

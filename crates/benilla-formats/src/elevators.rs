@@ -9,10 +9,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{f32_at, parse, u32_at};
+use crate::dbc::{f32_at, u32_at};
+
 use crate::Chain;
 
 const TRANSPORT_ANIMATION: &str = "DBFilesClient\\TransportAnimation.dbc";
@@ -63,10 +65,7 @@ fn schema() -> Schema {
 /// path that cannot drive a cycle (under 2 frames, a zero period, a first frame past 0); its GO
 /// stays at its spawn point.
 pub fn load_elevator_paths(chain: &mut Chain) -> Result<ElevatorPaths> {
-    let bytes = chain
-        .read_file(TRANSPORT_ANIMATION)
-        .context("reading TransportAnimation.dbc")?;
-    let rs = parse(&bytes, schema(), "TransportAnimation")?;
+    let rs = crate::dbc::load(chain, TRANSPORT_ANIMATION, schema(), "TransportAnimation")?;
     let mut by_entry: HashMap<u32, Vec<ElevatorKeyframe>> = HashMap::new();
     for r in rs.records() {
         let Some(entry) = u32_at(r, 1) else { continue };

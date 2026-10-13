@@ -4,11 +4,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
 use crate::chain::Chain;
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
 
 const AREA_TABLE: &str = "DBFilesClient\\AreaTable.dbc";
 
@@ -124,10 +125,7 @@ fn schema() -> Schema {
 
 /// Read `AreaTable.dbc` off the patch chain into an [`AreaTableCatalog`].
 pub fn load_area_table_catalog(chain: &mut Chain) -> Result<AreaTableCatalog> {
-    let bytes = chain
-        .read_file(AREA_TABLE)
-        .context("reading AreaTable.dbc")?;
-    let rs = parse(&bytes, schema(), "AreaTable")?;
+    let rs = crate::dbc::load(chain, AREA_TABLE, schema(), "AreaTable")?;
     let mut by_id = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let (Some(id), Some(map_id), Some(zone_id), Some(explore_flag), Some(flags), Some(name)) = (

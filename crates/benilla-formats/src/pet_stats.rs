@@ -6,11 +6,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
 use crate::chain::Chain;
-use crate::dbc::{f32_at, parse, str_at, u32_at};
+use crate::dbc::{f32_at, str_at, u32_at};
 
 const PET_PERSONALITY: &str = "DBFilesClient\\PetPersonality.dbc";
 const PET_LOYALTY: &str = "DBFilesClient\\PetLoyalty.dbc";
@@ -142,10 +143,12 @@ fn loyalty_schema() -> Schema {
 
 /// Load `PetPersonality.dbc` from the patch chain.
 pub fn load_pet_personalities(chain: &mut Chain) -> Result<PetPersonalities> {
-    let bytes = chain
-        .read_file(PET_PERSONALITY)
-        .with_context(|| format!("reading {PET_PERSONALITY}"))?;
-    let rs = parse(&bytes, personality_schema(), "PetPersonality.dbc")?;
+    let rs = crate::dbc::load(
+        chain,
+        PET_PERSONALITY,
+        personality_schema(),
+        "PetPersonality.dbc",
+    )?;
     let mut by_id = HashMap::new();
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };
@@ -165,10 +168,7 @@ pub fn load_pet_personalities(chain: &mut Chain) -> Result<PetPersonalities> {
 
 /// Load `PetLoyalty.dbc` from the patch chain.
 pub fn load_pet_loyalty_names(chain: &mut Chain) -> Result<PetLoyaltyNames> {
-    let bytes = chain
-        .read_file(PET_LOYALTY)
-        .with_context(|| format!("reading {PET_LOYALTY}"))?;
-    let rs = parse(&bytes, loyalty_schema(), "PetLoyalty.dbc")?;
+    let rs = crate::dbc::load(chain, PET_LOYALTY, loyalty_schema(), "PetLoyalty.dbc")?;
     let mut by_id = HashMap::new();
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };

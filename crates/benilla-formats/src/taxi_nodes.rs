@@ -5,10 +5,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{f32_at, parse, str_at, u32_at};
+use crate::dbc::{f32_at, str_at, u32_at};
+
 use crate::Chain;
 
 const TAXI_NODES: &str = "DBFilesClient\\TaxiNodes.dbc";
@@ -75,10 +77,7 @@ fn schema() -> Schema {
 
 /// Read `TaxiNodes.dbc` off the patch chain into a [`TaxiNodes`] catalog.
 pub fn load_taxi_nodes(chain: &mut Chain) -> Result<TaxiNodes> {
-    let bytes = chain
-        .read_file(TAXI_NODES)
-        .context("reading TaxiNodes.dbc")?;
-    let rs = parse(&bytes, schema(), "TaxiNodes")?;
+    let rs = crate::dbc::load(chain, TAXI_NODES, schema(), "TaxiNodes")?;
     let mut rows = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };

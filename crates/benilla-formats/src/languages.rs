@@ -8,10 +8,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
+
 use crate::Chain;
 
 const LANGUAGES: &str = "DBFilesClient\\Languages.dbc";
@@ -99,10 +101,7 @@ impl Languages {
 }
 
 pub fn load_languages(chain: &mut Chain) -> Result<Languages> {
-    let bytes = chain
-        .read_file(LANGUAGES)
-        .with_context(|| format!("reading {LANGUAGES}"))?;
-    let langs = parse(&bytes, languages_schema(), "Languages.dbc")?;
+    let langs = crate::dbc::load(chain, LANGUAGES, languages_schema(), "Languages.dbc")?;
     let mut rows = Vec::with_capacity(langs.records().len());
     for r in langs.records() {
         let Some(id) = u32_at(r, 0) else { continue };
@@ -117,10 +116,7 @@ pub fn load_languages(chain: &mut Chain) -> Result<Languages> {
 
 /// Load and join both tables into the race-to-language-name map.
 pub fn load_default_languages(chain: &mut Chain) -> Result<DefaultLanguages> {
-    let lang_bytes = chain
-        .read_file(LANGUAGES)
-        .with_context(|| format!("reading {LANGUAGES}"))?;
-    let langs = parse(&lang_bytes, languages_schema(), "Languages.dbc")?;
+    let langs = crate::dbc::load(chain, LANGUAGES, languages_schema(), "Languages.dbc")?;
     let mut by_id: HashMap<u32, [Option<String>; LOCALES]> = HashMap::new();
     for r in langs.records() {
         let Some(id) = u32_at(r, 0) else { continue };
@@ -131,10 +127,7 @@ pub fn load_default_languages(chain: &mut Chain) -> Result<DefaultLanguages> {
         by_id.insert(id, names);
     }
 
-    let race_bytes = chain
-        .read_file(CHR_RACES)
-        .with_context(|| format!("reading {CHR_RACES}"))?;
-    let races = parse(&race_bytes, chr_races_schema(), "ChrRaces.dbc")?;
+    let races = crate::dbc::load(chain, CHR_RACES, chr_races_schema(), "ChrRaces.dbc")?;
     let mut out = HashMap::new();
     for r in races.records() {
         let (Some(race), Some(lang)) = (u32_at(r, 0), u32_at(r, CHR_RACES_BASE_LANGUAGE)) else {
@@ -230,10 +223,12 @@ fn language_words_schema() -> Schema {
 
 /// Load the per-language substitution pools, indexed by byte length.
 pub fn load_language_words(chain: &mut Chain) -> Result<LanguageWords> {
-    let bytes = chain
-        .read_file(LANGUAGE_WORDS)
-        .with_context(|| format!("reading {LANGUAGE_WORDS}"))?;
-    let table = parse(&bytes, language_words_schema(), "LanguageWords.dbc")?;
+    let table = crate::dbc::load(
+        chain,
+        LANGUAGE_WORDS,
+        language_words_schema(),
+        "LanguageWords.dbc",
+    )?;
     let mut out: HashMap<u32, LanguagePool> = HashMap::new();
     for r in table.records() {
         let (Some(lang), Some(word)) = (u32_at(r, 1), str_at(&table, r, 2)) else {

@@ -5,10 +5,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
 
 const LOADING_SCREENS: &str = "DBFilesClient\\LoadingScreens.dbc";
 
@@ -41,10 +42,7 @@ fn schema() -> Schema {
 
 /// Read LoadingScreens.dbc off the patch chain into a [`LoadingScreenCatalog`].
 pub fn load_loading_screens(chain: &mut Chain) -> Result<LoadingScreenCatalog> {
-    let bytes = chain
-        .read_file(LOADING_SCREENS)
-        .with_context(|| format!("reading {LOADING_SCREENS}"))?;
-    let rs = parse(&bytes, schema(), "LoadingScreens")?;
+    let rs = crate::dbc::load(chain, LOADING_SCREENS, schema(), "LoadingScreens")?;
     let mut paths = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         if let (Some(id), Some(path)) = (u32_at(r, 0), str_at(&rs, r, 2)) {

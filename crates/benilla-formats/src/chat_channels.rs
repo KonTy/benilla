@@ -2,11 +2,12 @@
 //! (vmangos's `Player::UpdateLocalChannels`, `Objects/Player.cpp:5121`, is empty): at world entry
 //! and every zone change `0x49a210` sends `CMSG_JOIN_CHANNEL` for each auto-join row.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
 use crate::chain::Chain;
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
 
 const CHAT_CHANNELS: &str = "DBFilesClient\\ChatChannels.dbc";
 
@@ -146,10 +147,7 @@ fn schema() -> Schema {
 }
 
 pub fn load_chat_channels_catalog(chain: &mut Chain) -> Result<ChatChannelsCatalog> {
-    let bytes = chain
-        .read_file(CHAT_CHANNELS)
-        .context("reading ChatChannels.dbc")?;
-    let rs = parse(&bytes, schema(), "ChatChannels")?;
+    let rs = crate::dbc::load(chain, CHAT_CHANNELS, schema(), "ChatChannels")?;
     let mut rows = Vec::with_capacity(rs.records().len());
     for r in rs.records() {
         let (Some(id), Some(flags), Some(pattern)) =

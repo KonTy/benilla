@@ -8,10 +8,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
+
 use crate::Chain;
 
 const EMOTES_TEXT: &str = "DBFilesClient\\EmotesText.dbc";
@@ -157,10 +159,7 @@ fn emotes_text_data_schema() -> Schema {
 
 /// Read and join both tables off the patch chain.
 pub fn load_emote_text_catalog(chain: &mut Chain) -> Result<EmoteTextCatalog> {
-    let bytes = chain
-        .read_file(EMOTES_TEXT)
-        .with_context(|| format!("reading {EMOTES_TEXT}"))?;
-    let rs = parse(&bytes, emotes_text_schema(), "EmotesText.dbc")?;
+    let rs = crate::dbc::load(chain, EMOTES_TEXT, emotes_text_schema(), "EmotesText.dbc")?;
     let mut forms = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };
@@ -171,10 +170,12 @@ pub fn load_emote_text_catalog(chain: &mut Chain) -> Result<EmoteTextCatalog> {
         forms.insert(id, cols);
     }
 
-    let bytes = chain
-        .read_file(EMOTES_TEXT_DATA)
-        .with_context(|| format!("reading {EMOTES_TEXT_DATA}"))?;
-    let rs = parse(&bytes, emotes_text_data_schema(), "EmotesTextData.dbc")?;
+    let rs = crate::dbc::load(
+        chain,
+        EMOTES_TEXT_DATA,
+        emotes_text_data_schema(),
+        "EmotesTextData.dbc",
+    )?;
     let mut data = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };

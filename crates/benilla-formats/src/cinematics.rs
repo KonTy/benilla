@@ -17,10 +17,12 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 use benilla_m2::{M2Camera, M2SplineKey, M2Track};
 
-use crate::dbc::{f32_at, parse, str_at, u32_at};
+use crate::dbc::{f32_at, str_at, u32_at};
+
 use crate::Chain;
 
 const SEQUENCES: &str = "DBFilesClient\\CinematicSequences.dbc";
@@ -129,10 +131,7 @@ fn cameras_schema() -> Schema {
 
 /// Read both cinematic tables off the patch chain.
 pub fn load_cinematics(chain: &mut Chain) -> Result<CinematicCatalog> {
-    let bytes = chain
-        .read_file(SEQUENCES)
-        .with_context(|| format!("reading {SEQUENCES}"))?;
-    let rs = parse(&bytes, sequences_schema(), "CinematicSequences")?;
+    let rs = crate::dbc::load(chain, SEQUENCES, sequences_schema(), "CinematicSequences")?;
     let mut sequences = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };
@@ -150,10 +149,7 @@ pub fn load_cinematics(chain: &mut Chain) -> Result<CinematicCatalog> {
         );
     }
 
-    let bytes = chain
-        .read_file(CAMERAS)
-        .with_context(|| format!("reading {CAMERAS}"))?;
-    let rs = parse(&bytes, cameras_schema(), "CinematicCamera")?;
+    let rs = crate::dbc::load(chain, CAMERAS, cameras_schema(), "CinematicCamera")?;
     let mut cameras = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };

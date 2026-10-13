@@ -6,10 +6,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{i32_at, parse, u32_at};
+use crate::dbc::{i32_at, u32_at};
 
 /// One `SpellDuration.dbc` row, in ms.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -75,9 +76,6 @@ const SPELL_DURATION_FIELDS: usize = 4;
 
 /// Load `SpellDuration.dbc` off the patch chain.
 pub fn load_spell_durations(chain: &mut Chain) -> Result<SpellDurationCatalog> {
-    let bytes = chain
-        .read_file(SPELL_DURATION)
-        .context("reading SpellDuration.dbc")?;
     let mut schema = Schema::new("SpellDuration");
     for i in 0..SPELL_DURATION_FIELDS {
         if i == 0 {
@@ -86,7 +84,7 @@ pub fn load_spell_durations(chain: &mut Chain) -> Result<SpellDurationCatalog> {
             schema.add_field(SchemaField::new(format!("F{i}"), FieldType::Int32));
         }
     }
-    let set = parse(&bytes, schema, "SpellDuration.dbc")?;
+    let set = crate::dbc::load(chain, SPELL_DURATION, schema, "SpellDuration.dbc")?;
     let mut durations = HashMap::new();
     for r in set.records() {
         let Some(id) = u32_at(r, 0) else { continue };

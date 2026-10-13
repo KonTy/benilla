@@ -1,6 +1,7 @@
 //! The spell catalog's column pins, checked end to end against the real 5875 `Spell.dbc`.
 
 use super::*;
+use crate::dbc::parse;
 
 /// A trainer's learn wrapper is never in `SkillLineAbility`, so the tree groups it by the spell
 /// it teaches: Heroic Strike 78 via 1605, Charge 100 via 1738, Battle Shout 6673 via 6674.
@@ -1213,7 +1214,7 @@ fn real_spell_catalog_cost_columns() {
     // `manaCostPerlevel` (33) is nonzero on 72 creature spells, so `power_cost` applies it though
     // no player tooltip shows it.
     let bytes = chain.read_file(super::SPELL).expect("reading Spell.dbc");
-    let rs = super::parse(&bytes, super::spell_schema(), "Spell.dbc").expect("Spell.dbc");
+    let rs = parse(&bytes, super::spell_schema(), "Spell.dbc").expect("Spell.dbc");
     let mut per_level_rows = 0u32;
     for r in rs.records() {
         let id = super::u32_at(r, 0).unwrap_or(0);
@@ -1585,4 +1586,22 @@ fn creature_type_mask_rule() {
         "type 1 is bit 0, not the wrapped bit 32"
     );
     assert!(masked(1).admits_creature_type(33), "bit 32 wraps to bit 0");
+}
+
+/// The client's fast path: with a `DBFilesClient` table for `Spell.dbc` and the file in the
+/// chain, the table must decode. If this ever stops holding, the startup load silently falls
+/// back to the file path, correct but slower.
+#[test]
+fn the_spell_table_decodes_from_the_sqlite_table() {
+    let data = crate::wow_data_or_skip!();
+    let db_path = data.join(crate::dbfiles::FILE_NAME);
+    if !db_path.is_file() {
+        eprintln!("spells: no DBFilesClient in {}; skipped", data.display());
+        return;
+    }
+    let chain = crate::open_chain(&data).expect("open chain");
+    assert!(
+        chain.dbc_record_set(SPELL, &spell_schema()).is_some(),
+        "Spell must decode from the sqlite table, not fall back to the file"
+    );
 }

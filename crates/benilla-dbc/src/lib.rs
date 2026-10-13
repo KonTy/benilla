@@ -67,7 +67,7 @@ impl Schema {
     }
 
     /// The 4-byte slots covered, arrays expanded; the header's `field_count` must match.
-    fn expanded_len(&self) -> usize {
+    pub fn expanded_len(&self) -> usize {
         self.fields.iter().map(|f| f.count).sum()
     }
 }
@@ -92,6 +92,11 @@ pub struct Record {
 }
 
 impl Record {
+    /// A record from decoded values, one per expanded slot.
+    pub fn new(values: Vec<Value>) -> Self {
+        Self { values }
+    }
+
     /// The value at expanded slot `i` (arrays count as `count` consecutive slots).
     pub fn get_value(&self, i: usize) -> Option<&Value> {
         self.values.get(i)
@@ -293,6 +298,16 @@ pub struct RecordSet {
 }
 
 impl RecordSet {
+    /// A decoded set from its parts: one field name per expanded slot, the records, and the
+    /// string block the records' [`StringRef`]s index.
+    pub fn new(field_names: Vec<String>, records: Vec<Record>, strings: Vec<u8>) -> Self {
+        Self {
+            field_names,
+            records,
+            strings,
+        }
+    }
+
     pub fn records(&self) -> &[Record] {
         &self.records
     }
