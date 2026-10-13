@@ -105,6 +105,11 @@ impl DbFiles {
         self.tables.contains_key(&stem.to_ascii_lowercase())
     }
 
+    /// The number of tables the file holds.
+    pub fn table_count(&self) -> usize {
+        self.tables.len()
+    }
+
     /// The table behind a DBC path, decoded against `schema`; `None` when the table is missing
     /// or does not match, so the caller reads the DBC file as usual.
     pub fn record_set(&self, chain: &Chain, dbc_path: &str, schema: &Schema) -> Option<RecordSet> {
