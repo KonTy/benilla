@@ -513,15 +513,15 @@ Each entry is the first sentence of a `Deviation:` comment, linking to where it 
 #### models
 
 - The fraction is clamped to `[0, 1]`; the reference extrapolates, which for a window whose brackets miss the band can push a fix16 factor negative and cull the batch on a quirk. ([`src/models/key_anim.rs:130`](../crates/benilla-formats/src/models/key_anim.rs#L130))
-- Owners past the ceiling (Maraudon's waterfalls, the glue screens) keep the interleave with their emitters, because a bias past a 200-yard owner would jump every transparent surface in the zone. ([`src/models/m2_batches.rs:682`](../crates/benilla-formats/src/models/m2_batches.rs#L682))
+- Owners past the ceiling (Maraudon's waterfalls, the glue screens) keep the interleave with their emitters, because a bias past a 200-yard owner would jump every transparent surface in the zone. ([`src/models/m2_batches.rs:786`](../crates/benilla-formats/src/models/m2_batches.rs#L786))
 - The fx lane redraws them as projected decals (`ground_fx`) so they drape the terrain. ([`src/models/types.rs:383`](../crates/benilla-formats/src/models/types.rs#L383))
 - Consumers light such a card off the side it presents, because the reference's shading of it is inverted and follows the camera. ([`src/models/types.rs:454`](../crates/benilla-formats/src/models/types.rs#L454))
 - The UV comes from the model-space position, not each surface's own `(i, j)`, because the two agree on cell-aligned surfaces and the position never seams where they are not. ([`src/models/wmo/group.rs:19`](../crates/benilla-formats/src/models/wmo/group.rs#L19))
 
 #### particles
 
-- NaN floors to 0 where the reference reads the raw mantissa, because we do not reproduce its divide by zero on a `mid` of 0 or 1; no shipped emitter authors one. ([`src/particles.rs:73`](../crates/benilla-formats/src/particles.rs#L73))
-- `mid` is clamped to \[1e-3, 1\] because a 0 divides by zero in the reference (`0x7b9cf0`, walking NaN into the sampler); no shipped emitter authors one. ([`src/particles.rs:114`](../crates/benilla-formats/src/particles.rs#L114))
+- NaN floors to 0 where the reference reads the raw mantissa, because we do not reproduce its divide by zero on a `mid` of 0 or 1; no shipped emitter authors one. ([`src/particles.rs:75`](../crates/benilla-formats/src/particles.rs#L75))
+- `mid` is clamped to \[1e-3, 1\] because a 0 divides by zero in the reference (`0x7b9cf0`, walking NaN into the sampler); no shipped emitter authors one. ([`src/particles.rs:212`](../crates/benilla-formats/src/particles.rs#L212))
 
 #### server_messages
 
