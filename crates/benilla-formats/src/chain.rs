@@ -9,7 +9,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use benilla_dbc::{RecordSet, Schema};
 use benilla_mpq::Archive;
 
-use crate::dbfiles::{DbFiles, FILE_NAME};
+use crate::dbfiles::{DbFiles, DbcProvider, FILE_NAME};
 use crate::{Locale, VANILLA_BASE_ORDER};
 
 /// One entry from a chain listing: an internal path and its uncompressed size.
@@ -26,8 +26,9 @@ pub struct Chain {
     archives: Vec<Archive>,
     /// The locale the chain's `Wow.ini` names, read once at open as start-up reads it once.
     locale: Locale,
-    /// The `Data` folder's `DBFilesClient` file: `None` for a single-MPQ chain or an absent file.
-    dbfiles: Option<DbFiles>,
+    /// The `Data` folder's DBC provider, when the install ships a `DBFilesClient` sqlite
+    /// database: `None` for a single-MPQ chain or an absent file.
+    dbc_provider: Option<Box<dyn DbcProvider>>,
 }
 
 /// `patch-?.MPQ` as the reference's `FindFirstFileW` glob matches it (template `0x82edbc`, wrapper
@@ -70,7 +71,7 @@ fn mount_order(dir_names: &[String]) -> Vec<String> {
 /// The `Data` folder's `DBFilesClient` sqlite file, when one is present: an absent file is a
 /// quiet `None`; one that fails to open is skipped with a note, so a broken override never takes
 /// the DBCs down with it.
-fn open_dbfiles(data_dir: &Path) -> Option<DbFiles> {
+fn open_dbfiles(data_dir: &Path) -> Option<Box<dyn DbcProvider>> {
     let path = data_dir.join(FILE_NAME);
     if !path.is_file() {
         return None;
@@ -82,7 +83,7 @@ fn open_dbfiles(data_dir: &Path) -> Option<DbFiles> {
                 path.display(),
                 db.table_count()
             );
-            Some(db)
+            Some(Box::new(db))
         }
         Err(e) => {
             eprintln!(
@@ -128,7 +129,7 @@ impl Chain {
                 Archive::open(path).with_context(|| format!("opening MPQ {}", path.display()))?,
             );
         }
-        let dbfiles = if path.is_dir() {
+        let dbc_provider = if path.is_dir() {
             open_dbfiles(path)
         } else {
             None
@@ -136,7 +137,7 @@ impl Chain {
         let mut chain = Self {
             archives,
             locale: Locale::default(),
-            dbfiles,
+            dbc_provider,
         };
         chain.locale = crate::wow_ini::client_locale(&chain);
         Ok(chain)
@@ -158,7 +159,7 @@ impl Chain {
     /// A DBC path's records from the `DBFilesClient` table, when the chain carries one, the table
     /// exists and matches `schema`: `None` otherwise, so the caller reads the DBC file as usual.
     pub fn dbc_record_set(&self, path: &str, schema: &Schema) -> Option<RecordSet> {
-        self.dbfiles.as_ref()?.record_set(self, path, schema)
+        self.dbc_provider.as_deref()?.record_set(self, path, schema)
     }
 
     /// The highest-priority archive with an entry for `name`, a delete marker included, as a

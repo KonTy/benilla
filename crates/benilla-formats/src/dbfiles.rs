@@ -23,6 +23,16 @@ use crate::Chain;
 /// The sqlite file's name inside a `Data` folder.
 pub const FILE_NAME: &str = "DBFilesClient";
 
+/// A swappable source of DBC tables. The patch chain's WDBC files remain the built-in fallback
+/// (`crate::dbc::load` reads the file when no provider carries the table); the chain adopts a
+/// provider at open when the install ships a `DBFilesClient` sqlite database. A different
+/// source later is a new implementation, adopted in that one place.
+pub(crate) trait DbcProvider: Send + Sync {
+    /// The table behind a DBC path, decoded against `schema`; `None` when this provider does
+    /// not carry the table or it does not match, so the caller falls through to the file.
+    fn record_set(&self, chain: &Chain, dbc_path: &str, schema: &Schema) -> Option<RecordSet>;
+}
+
 /// The `Data` folder's `DBFilesClient` file: a table named for each DBC file, read as record
 /// sets. `Send + Sync`; a read locks one connection, and DBC loads are a startup affair.
 pub struct DbFiles {
@@ -110,20 +120,6 @@ impl DbFiles {
         self.tables.len()
     }
 
-    /// The table behind a DBC path, decoded against `schema`; `None` when the table is missing
-    /// or does not match, so the caller reads the DBC file as usual.
-    pub fn record_set(&self, chain: &Chain, dbc_path: &str, schema: &Schema) -> Option<RecordSet> {
-        let stem = dbc_table_name(dbc_path)?;
-        let table = self.tables.get(&stem.to_ascii_lowercase())?;
-        let header = {
-            let mut inner = self.inner.lock().ok()?;
-            *inner
-                .headers
-                .entry(table.clone())
-                .or_insert_with(|| chain_header(chain, dbc_path))
-        };
-        self.decode(table, schema, header)
-    }
     /// A table decoded against `schema`: `header` is the DBC file's counts when the file is in
     /// the chain, `None` when it is not (the table then stands alone and its rows carry the
     /// record size). Any mismatch is a `None`, not an error: the file wins.
@@ -342,6 +338,21 @@ impl DbFiles {
         Some(RecordSet::new(names, records, block))
     }
 }
+impl DbcProvider for DbFiles {
+    fn record_set(&self, chain: &Chain, dbc_path: &str, schema: &Schema) -> Option<RecordSet> {
+        let stem = dbc_table_name(dbc_path)?;
+        let table = self.tables.get(&stem.to_ascii_lowercase())?;
+        let header = {
+            let mut inner = self.inner.lock().ok()?;
+            *inner
+                .headers
+                .entry(table.clone())
+                .or_insert_with(|| chain_header(chain, dbc_path))
+        };
+        self.decode(table, schema, header)
+    }
+}
+
 /// A table's layout from `PRAGMA table_info`: `rec` BLOB first, then `c<k>` columns of TEXT or
 /// BLOB, the slots unique; anything else is `Bad`.
 fn probe_layout(conn: &Connection, table: &str) -> Layout {

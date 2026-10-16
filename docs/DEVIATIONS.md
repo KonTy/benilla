@@ -487,7 +487,7 @@ Each entry is the first sentence of a `Deviation:` comment, linking to where it 
 
 #### chain
 
-- An archive that fails to open is an error, where the reference logs `"Failed to open archive"` and goes on, because a skipped corrupt archive surfaces only as missing files far downstream. ([`src/chain.rs:100`](../crates/benilla-formats/src/chain.rs#L100))
+- An archive that fails to open is an error, where the reference logs `"Failed to open archive"` and goes on, because a skipped corrupt archive surfaces only as missing files far downstream. ([`src/chain.rs:101`](../crates/benilla-formats/src/chain.rs#L101))
 
 #### characters
 
