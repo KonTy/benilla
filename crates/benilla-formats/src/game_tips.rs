@@ -48,7 +48,7 @@ fn schema() -> Schema {
 }
 
 pub fn load_game_tips(chain: &mut Chain) -> Result<GameTipsCatalog> {
-let rs =     crate::dbc::load(chain, GAME_TIPS, schema(), "GameTips")?;
+    let rs = crate::dbc::load(chain, GAME_TIPS, schema(), "GameTips")?;
     let locale = chain.locale();
     let mut tips = Vec::with_capacity(rs.records().len());
     for r in rs.records() {

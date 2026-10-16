@@ -146,7 +146,7 @@ fn schema() -> Schema {
 }
 
 pub fn load_chat_channels_catalog(chain: &mut Chain) -> Result<ChatChannelsCatalog> {
-let rs =     crate::dbc::load(chain, CHAT_CHANNELS, schema(), "ChatChannels")?;
+    let rs = crate::dbc::load(chain, CHAT_CHANNELS, schema(), "ChatChannels")?;
     let locale = chain.locale();
     let mut rows = Vec::with_capacity(rs.records().len());
     for r in rs.records() {

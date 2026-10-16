@@ -47,7 +47,7 @@ fn item_class_schema() -> Schema {
 
 /// Load ItemClass.dbc from the patch chain.
 pub fn load_item_classes(chain: &mut Chain) -> Result<ItemClassCatalog> {
-let rs =     crate::dbc::load(chain, ITEM_CLASS, item_class_schema(), "ItemClass")?;
+    let rs = crate::dbc::load(chain, ITEM_CLASS, item_class_schema(), "ItemClass")?;
     let locale = chain.locale();
     let mut names = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {

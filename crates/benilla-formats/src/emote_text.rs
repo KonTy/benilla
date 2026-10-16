@@ -152,7 +152,7 @@ fn emotes_text_data_schema() -> Schema {
 
 /// Read and join both tables off the patch chain.
 pub fn load_emote_text_catalog(chain: &mut Chain) -> Result<EmoteTextCatalog> {
-let rs =     crate::dbc::load(chain, EMOTES_TEXT, emotes_text_schema(), "EmotesText.dbc")?;
+    let rs = crate::dbc::load(chain, EMOTES_TEXT, emotes_text_schema(), "EmotesText.dbc")?;
     let mut forms = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };
@@ -162,8 +162,7 @@ let rs =     crate::dbc::load(chain, EMOTES_TEXT, emotes_text_schema(), "EmotesT
         }
         forms.insert(id, cols);
     }
-let rs = 
-    crate::dbc::load(
+    let rs = crate::dbc::load(
         chain,
         EMOTES_TEXT_DATA,
         emotes_text_data_schema(),

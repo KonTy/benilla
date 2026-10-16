@@ -185,7 +185,7 @@ fn map_schema() -> Schema {
 
 /// Read Map.dbc off the patch chain into a [`MapCatalog`].
 pub fn load_map_catalog(chain: &mut Chain) -> Result<MapCatalog> {
-let rs =     crate::dbc::load(chain, MAP, map_schema(), "Map")?;
+    let rs = crate::dbc::load(chain, MAP, map_schema(), "Map")?;
     let locale = chain.locale();
     let mut dirs = HashMap::with_capacity(rs.records().len());
     let mut names = HashMap::with_capacity(rs.records().len());

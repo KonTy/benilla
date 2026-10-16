@@ -48,7 +48,7 @@ fn item_bag_family_schema() -> Schema {
 
 /// Load ItemBagFamily.dbc from the patch chain.
 pub fn load_item_bag_families(chain: &mut Chain) -> Result<ItemBagFamilyCatalog> {
-let rs =     crate::dbc::load(
+    let rs = crate::dbc::load(
         chain,
         ITEM_BAG_FAMILY,
         item_bag_family_schema(),

@@ -75,7 +75,7 @@ fn schema() -> Schema {
 
 /// Read `TaxiNodes.dbc` off the patch chain into a [`TaxiNodes`] catalog.
 pub fn load_taxi_nodes(chain: &mut Chain) -> Result<TaxiNodes> {
-let rs =     crate::dbc::load(chain, TAXI_NODES, schema(), "TaxiNodes")?;
+    let rs = crate::dbc::load(chain, TAXI_NODES, schema(), "TaxiNodes")?;
     let locale = chain.locale();
     let mut rows = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {

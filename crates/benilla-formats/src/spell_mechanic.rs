@@ -49,7 +49,7 @@ fn schema() -> Schema {
 
 /// Load SpellMechanic.dbc from the patch chain into a [`SpellMechanicCatalog`].
 pub fn load_spell_mechanic_catalog(chain: &mut Chain) -> Result<SpellMechanicCatalog> {
-let rs =     crate::dbc::load(chain, SPELL_MECHANIC, schema(), "SpellMechanic.dbc")?;
+    let rs = crate::dbc::load(chain, SPELL_MECHANIC, schema(), "SpellMechanic.dbc")?;
     let locale = chain.locale();
     let mut names = HashMap::new();
     for r in rs.records() {

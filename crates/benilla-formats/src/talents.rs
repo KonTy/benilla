@@ -149,7 +149,7 @@ fn talent_tab_schema() -> Schema {
 
 /// Load both tables off the patch chain.
 pub fn load_talent_catalog(chain: &mut Chain) -> Result<TalentCatalog> {
-let tab_set =     crate::dbc::load(chain, TALENT_TAB, talent_tab_schema(), "TalentTab.dbc")?;
+    let tab_set = crate::dbc::load(chain, TALENT_TAB, talent_tab_schema(), "TalentTab.dbc")?;
     let icons = load_spell_icon_map(chain)?;
     let locale = chain.locale();
     let mut tabs = Vec::new();
@@ -164,8 +164,7 @@ let tab_set =     crate::dbc::load(chain, TALENT_TAB, talent_tab_schema(), "Tale
             icon: u32_at(r, COL_TT_SPELL_ICON).and_then(|id| icons.get(&id).cloned()),
         });
     }
-let t_set = 
-    crate::dbc::load(chain, TALENT, talent_schema(), "Talent.dbc")?;
+    let t_set = crate::dbc::load(chain, TALENT, talent_schema(), "Talent.dbc")?;
     let mut by_tab: HashMap<u32, Vec<Talent>> = HashMap::new();
     for r in t_set.records() {
         let Some(id) = u32_at(r, 0) else { continue };

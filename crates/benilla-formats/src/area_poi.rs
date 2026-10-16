@@ -90,7 +90,7 @@ fn schema() -> Schema {
 
 /// Read `AreaPOI.dbc` off the patch chain into an [`AreaPoiCatalog`].
 pub fn load_area_poi_catalog(chain: &mut Chain) -> Result<AreaPoiCatalog> {
-let rs =     crate::dbc::load(chain, AREA_POI, schema(), "AreaPOI")?;
+    let rs = crate::dbc::load(chain, AREA_POI, schema(), "AreaPOI")?;
     let locale = chain.locale();
     let mut rows = Vec::with_capacity(rs.records().len());
     let mut by_id = HashMap::with_capacity(rs.records().len());

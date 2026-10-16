@@ -49,7 +49,7 @@ fn schema() -> Schema {
 
 /// Load SpellFocusObject.dbc from the patch chain into a [`SpellFocusCatalog`].
 pub fn load_spell_focus_catalog(chain: &mut Chain) -> Result<SpellFocusCatalog> {
-let rs =     crate::dbc::load(chain, SPELL_FOCUS_OBJECT, schema(), "SpellFocusObject.dbc")?;
+    let rs = crate::dbc::load(chain, SPELL_FOCUS_OBJECT, schema(), "SpellFocusObject.dbc")?;
     let locale = chain.locale();
     let mut names = HashMap::new();
     for r in rs.records() {

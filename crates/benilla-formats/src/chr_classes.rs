@@ -166,7 +166,7 @@ fn schema() -> Schema {
 
 /// Load `ChrClasses.dbc`'s read columns from the patch chain.
 pub fn load_chr_classes(chain: &mut Chain) -> Result<ChrClasses> {
-let rs =     crate::dbc::load(chain, CHR_CLASSES, schema(), "ChrClasses.dbc")?;
+    let rs = crate::dbc::load(chain, CHR_CLASSES, schema(), "ChrClasses.dbc")?;
     let locale = chain.locale();
     let mut by_id = HashMap::new();
     for r in rs.records() {

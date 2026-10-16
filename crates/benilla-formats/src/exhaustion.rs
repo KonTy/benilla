@@ -38,7 +38,7 @@ fn exhaustion_schema() -> Schema {
 
 /// Load Exhaustion.dbc from the patch chain.
 pub fn load_exhaustion(chain: &mut Chain) -> Result<Vec<ExhaustionRow>> {
-let rs =     crate::dbc::load(chain, EXHAUSTION, exhaustion_schema(), "Exhaustion")?;
+    let rs = crate::dbc::load(chain, EXHAUSTION, exhaustion_schema(), "Exhaustion")?;
     let locale = chain.locale();
     let mut rows = Vec::with_capacity(rs.records().len());
     for r in rs.records() {

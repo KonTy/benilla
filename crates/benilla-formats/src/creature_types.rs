@@ -10,7 +10,9 @@ use std::collections::HashMap;
 use anyhow::Result;
 use benilla_dbc::{FieldType, RecordSet, Schema, SchemaField};
 
-use crate::dbc::{loc_str, parse, u32_at};
+#[cfg(test)]
+use crate::dbc::parse;
+use crate::dbc::{loc_str, u32_at};
 use crate::{Chain, Locale};
 
 const CREATURE_TYPE: &str = "DBFilesClient\\CreatureType.dbc";
@@ -91,6 +93,7 @@ fn table_from_set(rs: &RecordSet, locale: Locale) -> CreatureTypeTable {
 
 /// The table the `CreatureType.dbc` bytes hold, its names read at `locale`: the tests'
 /// synthetic rows never pass through the patch chain.
+#[cfg(test)]
 fn table_from_bytes(bytes: &[u8], locale: Locale) -> Result<CreatureTypeTable> {
     let rs = parse(bytes, creature_type_schema(), "CreatureType")?;
     Ok(table_from_set(&rs, locale))

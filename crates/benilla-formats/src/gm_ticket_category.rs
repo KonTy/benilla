@@ -54,7 +54,7 @@ fn gm_ticket_category_schema() -> Schema {
 /// Load `GMTicketCategory.dbc` from the patch chain. A row with an empty name is skipped, as it
 /// would paint a dead button; 5875 has none.
 pub fn load_gm_ticket_categories(chain: &mut Chain) -> Result<GmTicketCategoryCatalog> {
-let rs =     crate::dbc::load(
+    let rs = crate::dbc::load(
         chain,
         GM_TICKET_CATEGORY,
         gm_ticket_category_schema(),

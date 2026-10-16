@@ -142,7 +142,7 @@ fn loyalty_schema() -> Schema {
 
 /// Load `PetPersonality.dbc` from the patch chain.
 pub fn load_pet_personalities(chain: &mut Chain) -> Result<PetPersonalities> {
-let rs =     crate::dbc::load(
+    let rs = crate::dbc::load(
         chain,
         PET_PERSONALITY,
         personality_schema(),
@@ -167,7 +167,7 @@ let rs =     crate::dbc::load(
 
 /// Load `PetLoyalty.dbc` from the patch chain.
 pub fn load_pet_loyalty_names(chain: &mut Chain) -> Result<PetLoyaltyNames> {
-let rs =     crate::dbc::load(chain, PET_LOYALTY, loyalty_schema(), "PetLoyalty.dbc")?;
+    let rs = crate::dbc::load(chain, PET_LOYALTY, loyalty_schema(), "PetLoyalty.dbc")?;
     let locale = chain.locale();
     let mut by_id = HashMap::new();
     for r in rs.records() {

@@ -105,7 +105,7 @@ fn schema() -> Schema {
 
 /// Read `WorldStateUI.dbc` off the patch chain.
 pub fn load_world_state_ui_catalog(chain: &mut Chain) -> Result<WorldStateUiCatalog> {
-let rs =     crate::dbc::load(chain, WORLD_STATE_UI, schema(), "WorldStateUI")?;
+    let rs = crate::dbc::load(chain, WORLD_STATE_UI, schema(), "WorldStateUI")?;
     let locale = chain.locale();
     let mut rows = Vec::with_capacity(rs.records().len());
     for r in rs.records() {

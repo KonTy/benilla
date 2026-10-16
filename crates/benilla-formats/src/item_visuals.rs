@@ -172,7 +172,7 @@ pub(crate) fn spell_item_enchantment_schema() -> Schema {
 
 /// Load and join `ItemVisuals.dbc` and `ItemVisualEffects.dbc`, applying the reference's skips.
 pub fn load_item_visual_catalog(chain: &mut Chain) -> Result<ItemVisualCatalog> {
-let rs =     crate::dbc::load(
+    let rs = crate::dbc::load(
         chain,
         ITEM_VISUAL_EFFECTS,
         item_visual_effects_schema(),
@@ -186,8 +186,7 @@ let rs =     crate::dbc::load(
         };
         effects.insert(id, model);
     }
-let rs = 
-    crate::dbc::load(chain, ITEM_VISUALS, item_visuals_schema(), "ItemVisuals")?;
+    let rs = crate::dbc::load(chain, ITEM_VISUALS, item_visuals_schema(), "ItemVisuals")?;
     let mut visuals = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };
@@ -204,7 +203,7 @@ let rs =
 
 /// Load the [`EnchantCatalog`] from `SpellItemEnchantment.dbc`.
 pub fn load_enchant_catalog(chain: &mut Chain) -> Result<EnchantCatalog> {
-let rs =     crate::dbc::load(
+    let rs = crate::dbc::load(
         chain,
         SPELL_ITEM_ENCHANTMENT,
         spell_item_enchantment_schema(),

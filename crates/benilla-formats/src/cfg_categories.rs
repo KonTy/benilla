@@ -37,7 +37,7 @@ fn cfg_categories_schema() -> Schema {
 /// The categories of `region`, in file order (`0x46e3b1`: a row joins when its column 1 equals
 /// the Region). A Region no row names yields none.
 pub fn load_realm_categories(chain: &mut Chain, region: u32) -> Result<Vec<RealmCategory>> {
-let rs =     crate::dbc::load(
+    let rs = crate::dbc::load(
         chain,
         CFG_CATEGORIES,
         cfg_categories_schema(),

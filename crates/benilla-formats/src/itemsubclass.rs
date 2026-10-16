@@ -218,7 +218,12 @@ fn item_sub_class_mask_schema() -> Schema {
 /// Load `ItemSubClass.dbc` and the `ItemSubClassMask.dbc` group names off the patch chain.
 pub fn load_item_sub_classes(chain: &mut Chain) -> Result<ItemSubClassCatalog> {
     let locale = chain.locale();
-    let rs = crate::dbc::load(chain, ITEM_SUB_CLASS, item_sub_class_schema(), "ItemSubClass")?;
+    let rs = crate::dbc::load(
+        chain,
+        ITEM_SUB_CLASS,
+        item_sub_class_schema(),
+        "ItemSubClass",
+    )?;
     let mask_rs = crate::dbc::load(
         chain,
         ITEM_SUB_CLASS_MASK,

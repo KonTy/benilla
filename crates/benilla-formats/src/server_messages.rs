@@ -64,7 +64,7 @@ fn schema() -> Schema {
 }
 
 pub fn load_server_messages_catalog(chain: &mut Chain) -> Result<ServerMessagesCatalog> {
-let rs =     crate::dbc::load(chain, SERVER_MESSAGES, schema(), "ServerMessages")?;
+    let rs = crate::dbc::load(chain, SERVER_MESSAGES, schema(), "ServerMessages")?;
     let locale = chain.locale();
     let mut rows = Vec::with_capacity(rs.records().len());
     for r in rs.records() {

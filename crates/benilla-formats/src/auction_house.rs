@@ -70,7 +70,7 @@ fn auction_house_schema() -> Schema {
 
 /// Load `AuctionHouse.dbc` from the patch chain.
 pub fn load_auction_houses(chain: &mut Chain) -> Result<AuctionHouseCatalog> {
-let rs =     crate::dbc::load(chain, AUCTION_HOUSE, auction_house_schema(), "AuctionHouse")?;
+    let rs = crate::dbc::load(chain, AUCTION_HOUSE, auction_house_schema(), "AuctionHouse")?;
     let locale = chain.locale();
     let mut houses = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {

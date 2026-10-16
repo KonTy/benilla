@@ -509,7 +509,12 @@ fn load_start_outfits(chain: &mut Chain) -> Result<HashMap<(u8, u8, u8), Vec<Sta
 /// domain vmangos's `GetCharSectionEntry` searches.
 fn load_available_sections(chain: &mut Chain) -> Result<HashSet<SectionKey>> {
     // 10 fields (ID, Race, Sex, SectionType, Variation, Color, Tex0-2, Flags); we read the ints.
-    let rs = crate::dbc::load(chain, CHAR_SECTIONS, all_u32_schema("CharSections", 10), "CharSections")?;
+    let rs = crate::dbc::load(
+        chain,
+        CHAR_SECTIONS,
+        all_u32_schema("CharSections", 10),
+        "CharSections",
+    )?;
     let mut avail = HashSet::new();
     for r in rs.records() {
         if let (Some(race), Some(sex), Some(ty), Some(var), Some(color), Some(flags)) = (

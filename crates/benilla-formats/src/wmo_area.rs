@@ -147,7 +147,7 @@ fn schema() -> Schema {
 
 /// Read `WMOAreaTable.dbc` off the patch chain.
 pub fn load_wmo_area_catalog(chain: &mut Chain) -> Result<WmoAreaCatalog> {
-let rs =     crate::dbc::load(
+    let rs = crate::dbc::load(
         chain,
         "DBFilesClient\\WMOAreaTable.dbc",
         schema(),

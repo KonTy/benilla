@@ -411,7 +411,7 @@ fn chr_races_schema() -> Schema {
 
 /// Load the three faction tables and the race templates off the patch chain.
 pub fn load_faction_catalog(chain: &mut Chain) -> Result<FactionCatalog> {
-let rs =     crate::dbc::load(
+    let rs = crate::dbc::load(
         chain,
         FACTION_TEMPLATE,
         faction_template_schema(),
@@ -434,8 +434,7 @@ let rs =     crate::dbc::load(
             );
         }
     }
-let rs = 
-    crate::dbc::load(chain, FACTION, faction_schema(), "Faction")?;
+    let rs = crate::dbc::load(chain, FACTION, faction_schema(), "Faction")?;
     let locale = chain.locale();
     let mut factions = HashMap::with_capacity(rs.records().len());
     let mut names = HashMap::with_capacity(rs.records().len());
@@ -465,8 +464,7 @@ let rs =
             }
         }
     }
-let rs = 
-    crate::dbc::load(chain, FACTION_GROUP, faction_group_schema(), "FactionGroup")?;
+    let rs = crate::dbc::load(chain, FACTION_GROUP, faction_group_schema(), "FactionGroup")?;
     let mut group_names = HashMap::with_capacity(rs.records().len());
     let mut group_internal_names = HashMap::with_capacity(rs.records().len());
     let groups = rs
@@ -490,8 +488,7 @@ let rs =
         }
         group_names.insert(1u32 << mask_id, name);
     }
-let rs = 
-    crate::dbc::load(chain, CHR_RACES, chr_races_schema(), "ChrRaces")?;
+    let rs = crate::dbc::load(chain, CHR_RACES, chr_races_schema(), "ChrRaces")?;
     let race_templates = rs
         .records()
         .iter()

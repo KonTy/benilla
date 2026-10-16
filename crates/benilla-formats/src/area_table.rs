@@ -124,7 +124,7 @@ fn schema() -> Schema {
 
 /// Read `AreaTable.dbc` off the patch chain into an [`AreaTableCatalog`].
 pub fn load_area_table_catalog(chain: &mut Chain) -> Result<AreaTableCatalog> {
-let rs =     crate::dbc::load(chain, AREA_TABLE, schema(), "AreaTable")?;
+    let rs = crate::dbc::load(chain, AREA_TABLE, schema(), "AreaTable")?;
     let locale = chain.locale();
     let mut by_id = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {

@@ -95,7 +95,7 @@ pub(crate) fn item_random_properties_schema() -> Schema {
 /// Load `ItemRandomProperties.dbc` off the patch chain, dropping a row with no suffix, the
 /// formatter's plain-name exit.
 pub fn load_random_property_catalog(chain: &mut Chain) -> Result<RandomPropertyCatalog> {
-let rs =     crate::dbc::load(
+    let rs = crate::dbc::load(
         chain,
         ITEM_RANDOM_PROPERTIES,
         item_random_properties_schema(),

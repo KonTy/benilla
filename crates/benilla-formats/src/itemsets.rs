@@ -66,7 +66,7 @@ fn item_set_schema() -> Schema {
 
 /// Load ItemSet.dbc from the patch chain into an [`ItemSetCatalog`].
 pub fn load_item_sets(chain: &mut Chain) -> Result<ItemSetCatalog> {
-let rs =     crate::dbc::load(chain, ITEM_SET, item_set_schema(), "ItemSet")?;
+    let rs = crate::dbc::load(chain, ITEM_SET, item_set_schema(), "ItemSet")?;
     let locale = chain.locale();
     let mut sets = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
