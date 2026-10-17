@@ -7,10 +7,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
+
 use crate::Chain;
 
 /// One animation's policy row.
@@ -82,10 +84,12 @@ fn schema() -> Schema {
 
 /// Read `AnimationData.dbc` off the patch chain.
 pub fn load_anim_data_catalog(chain: &mut Chain) -> Result<AnimDataCatalog> {
-    let bytes = chain
-        .read_file("DBFilesClient\\AnimationData.dbc")
-        .context("reading AnimationData.dbc")?;
-    let rs = parse(&bytes, schema(), "AnimationData")?;
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\AnimationData.dbc",
+        schema(),
+        "AnimationData",
+    )?;
     let mut rows = HashMap::with_capacity(rs.records().len());
     let mut names = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {

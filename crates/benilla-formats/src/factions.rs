@@ -10,10 +10,10 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{loc_str, parse, u32_at};
+use crate::dbc::{loc_str, u32_at};
 use crate::Chain;
 
 const FACTION_TEMPLATE: &str = "DBFilesClient\\FactionTemplate.dbc";
@@ -411,10 +411,12 @@ fn chr_races_schema() -> Schema {
 
 /// Load the three faction tables and the race templates off the patch chain.
 pub fn load_faction_catalog(chain: &mut Chain) -> Result<FactionCatalog> {
-    let bytes = chain
-        .read_file(FACTION_TEMPLATE)
-        .with_context(|| format!("reading {FACTION_TEMPLATE}"))?;
-    let rs = parse(&bytes, faction_template_schema(), "FactionTemplate")?;
+    let rs = crate::dbc::load(
+        chain,
+        FACTION_TEMPLATE,
+        faction_template_schema(),
+        "FactionTemplate",
+    )?;
     let mut templates = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         if let Some(id) = u32_at(r, 0) {
@@ -432,11 +434,7 @@ pub fn load_faction_catalog(chain: &mut Chain) -> Result<FactionCatalog> {
             );
         }
     }
-
-    let bytes = chain
-        .read_file(FACTION)
-        .with_context(|| format!("reading {FACTION}"))?;
-    let rs = parse(&bytes, faction_schema(), "Faction")?;
+    let rs = crate::dbc::load(chain, FACTION, faction_schema(), "Faction")?;
     let locale = chain.locale();
     let mut factions = HashMap::with_capacity(rs.records().len());
     let mut names = HashMap::with_capacity(rs.records().len());
@@ -466,11 +464,7 @@ pub fn load_faction_catalog(chain: &mut Chain) -> Result<FactionCatalog> {
             }
         }
     }
-
-    let bytes = chain
-        .read_file(FACTION_GROUP)
-        .with_context(|| format!("reading {FACTION_GROUP}"))?;
-    let rs = parse(&bytes, faction_group_schema(), "FactionGroup")?;
+    let rs = crate::dbc::load(chain, FACTION_GROUP, faction_group_schema(), "FactionGroup")?;
     let mut group_names = HashMap::with_capacity(rs.records().len());
     let mut group_internal_names = HashMap::with_capacity(rs.records().len());
     let groups = rs
@@ -494,11 +488,7 @@ pub fn load_faction_catalog(chain: &mut Chain) -> Result<FactionCatalog> {
         }
         group_names.insert(1u32 << mask_id, name);
     }
-
-    let bytes = chain
-        .read_file(CHR_RACES)
-        .with_context(|| format!("reading {CHR_RACES}"))?;
-    let rs = parse(&bytes, chr_races_schema(), "ChrRaces")?;
+    let rs = crate::dbc::load(chain, CHR_RACES, chr_races_schema(), "ChrRaces")?;
     let race_templates = rs
         .records()
         .iter()

@@ -4,10 +4,10 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{loc_str, parse, u32_at};
+use crate::dbc::{loc_str, u32_at};
 use crate::Chain;
 
 const ITEM_SET: &str = "DBFilesClient\\ItemSet.dbc";
@@ -66,10 +66,7 @@ fn item_set_schema() -> Schema {
 
 /// Load ItemSet.dbc from the patch chain into an [`ItemSetCatalog`].
 pub fn load_item_sets(chain: &mut Chain) -> Result<ItemSetCatalog> {
-    let bytes = chain
-        .read_file(ITEM_SET)
-        .with_context(|| format!("reading {ITEM_SET}"))?;
-    let rs = parse(&bytes, item_set_schema(), "ItemSet")?;
+    let rs = crate::dbc::load(chain, ITEM_SET, item_set_schema(), "ItemSet")?;
     let locale = chain.locale();
     let mut sets = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {

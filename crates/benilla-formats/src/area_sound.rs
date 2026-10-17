@@ -6,10 +6,10 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{loc_str, parse, str_at, u32_at};
+use crate::dbc::{loc_str, str_at, u32_at};
 
 /// The audio-relevant slice of one `AreaTable` row.
 pub struct AreaEntry {
@@ -209,10 +209,7 @@ fn ambience_schema() -> Schema {
 pub fn load_area_sound_catalog(chain: &mut Chain) -> Result<AreaSoundCatalog> {
     let locale = chain.locale();
     let read = |chain: &mut Chain, file: &str, schema: Schema, what: &str| {
-        let bytes = chain
-            .read_file(file)
-            .with_context(|| format!("reading {file}"))?;
-        parse(&bytes, schema, what)
+        crate::dbc::load(chain, file, schema, what)
     };
 
     let rs = read(

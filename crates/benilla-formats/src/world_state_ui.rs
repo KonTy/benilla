@@ -5,10 +5,10 @@
 //! Layout: 39 fields of 156 bytes (the loader asserts both, `0x553a9e`, `0x553ad6`), each
 //! localized string nine dwords; field 22 (`+0x58`) is loaded and never read, so not carried.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{loc_str, parse, str_at, u32_at};
+use crate::dbc::{loc_str, str_at, u32_at};
 use crate::Chain;
 
 const WORLD_STATE_UI: &str = "DBFilesClient\\WorldStateUI.dbc";
@@ -105,10 +105,7 @@ fn schema() -> Schema {
 
 /// Read `WorldStateUI.dbc` off the patch chain.
 pub fn load_world_state_ui_catalog(chain: &mut Chain) -> Result<WorldStateUiCatalog> {
-    let bytes = chain
-        .read_file(WORLD_STATE_UI)
-        .context("reading WorldStateUI.dbc")?;
-    let rs = parse(&bytes, schema(), "WorldStateUI")?;
+    let rs = crate::dbc::load(chain, WORLD_STATE_UI, schema(), "WorldStateUI")?;
     let locale = chain.locale();
     let mut rows = Vec::with_capacity(rs.records().len());
     for r in rs.records() {

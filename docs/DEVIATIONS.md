@@ -487,11 +487,11 @@ Each entry is the first sentence of a `Deviation:` comment, linking to where it 
 
 #### chain
 
-- An archive that fails to open is an error, where the reference logs `"Failed to open archive"` and goes on, because a skipped corrupt archive surfaces only as missing files far downstream. ([`src/chain.rs:67`](../crates/benilla-formats/src/chain.rs#L67))
+- An archive that fails to open is an error, where the reference logs `"Failed to open archive"` and goes on, because a skipped corrupt archive surfaces only as missing files far downstream. ([`src/chain.rs:101`](../crates/benilla-formats/src/chain.rs#L101))
 
 #### characters
 
-- Blends in 8-bit RGBA, not the client's RGB565 with 2-bit coverage, because that format only saves texture memory and loses precision. ([`src/characters/sections.rs:280`](../crates/benilla-formats/src/characters/sections.rs#L280))
+- Blends in 8-bit RGBA, not the client's RGB565 with 2-bit coverage, because that format only saves texture memory and loses precision. ([`src/characters/sections.rs:279`](../crates/benilla-formats/src/characters/sections.rs#L279))
 
 #### creature_families
 

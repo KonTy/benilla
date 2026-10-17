@@ -4,11 +4,11 @@
 //! `CGlueMgr::EnterWorld` (`0x46b500`) stores the chosen record index, never an id, in the
 //! `gameTip` CVar. Record order is not id order: the file opens on id 396.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
 use crate::chain::Chain;
-use crate::dbc::{loc_str, parse};
+use crate::dbc::loc_str;
 
 const GAME_TIPS: &str = "DBFilesClient\\GameTips.dbc";
 
@@ -48,8 +48,7 @@ fn schema() -> Schema {
 }
 
 pub fn load_game_tips(chain: &mut Chain) -> Result<GameTipsCatalog> {
-    let bytes = chain.read_file(GAME_TIPS).context("reading GameTips.dbc")?;
-    let rs = parse(&bytes, schema(), "GameTips")?;
+    let rs = crate::dbc::load(chain, GAME_TIPS, schema(), "GameTips")?;
     let locale = chain.locale();
     let mut tips = Vec::with_capacity(rs.records().len());
     for r in rs.records() {

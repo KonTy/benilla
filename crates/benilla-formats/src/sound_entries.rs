@@ -8,10 +8,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{f32_at, parse, str_at, u32_at};
+use crate::dbc::{f32_at, str_at, u32_at};
 
 const SOUND_ENTRIES: &str = "DBFilesClient\\SoundEntries.dbc";
 
@@ -197,10 +198,7 @@ fn join_variation(dir: &str, file: &str) -> String {
 
 /// Read `SoundEntries.dbc` off the patch chain.
 pub fn load_sound_kit_catalog(chain: &mut Chain) -> Result<SoundKitCatalog> {
-    let bytes = chain
-        .read_file(SOUND_ENTRIES)
-        .with_context(|| format!("reading {SOUND_ENTRIES}"))?;
-    let rs = parse(&bytes, sound_entries_schema(), "SoundEntries")?;
+    let rs = crate::dbc::load(chain, SOUND_ENTRIES, sound_entries_schema(), "SoundEntries")?;
     let mut rows = Vec::with_capacity(rs.records().len());
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };

@@ -7,8 +7,8 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
-use benilla_dbc::{FieldType, Schema, SchemaField};
+use anyhow::Result;
+use benilla_dbc::{FieldType, RecordSet, Schema, SchemaField};
 
 use crate::dbc::{loc_str_raw, parse, str_at, u32_at};
 
@@ -74,14 +74,19 @@ fn schema() -> Schema {
 
 /// Load `LockType.dbc` from the patch chain into a [`LockTypeCatalog`].
 pub fn load_lock_type_catalog(chain: &mut Chain) -> Result<LockTypeCatalog> {
-    let bytes = chain
-        .read_file(LOCK_TYPE)
-        .with_context(|| format!("reading {LOCK_TYPE}"))?;
-    catalog_from_bytes(&bytes, chain.locale())
+    let rs = crate::dbc::load(chain, LOCK_TYPE, schema(), "LockType.dbc")?;
+    Ok(catalog_from_set(&rs, chain.locale()))
 }
 
+/// The catalog the `LockType.dbc` bytes hold, its names read at `locale`: the tests'
+/// synthetic rows never pass through the patch chain.
 fn catalog_from_bytes(bytes: &[u8], locale: crate::Locale) -> Result<LockTypeCatalog> {
     let rs = parse(bytes, schema(), "LockType.dbc")?;
+    Ok(catalog_from_set(&rs, locale))
+}
+
+/// The catalog in a parsed `LockType.dbc`, its names read at `locale`.
+fn catalog_from_set(rs: &RecordSet, locale: crate::Locale) -> LockTypeCatalog {
     let mut cursors = HashMap::new();
     let mut names = HashMap::new();
     for r in rs.records() {
@@ -93,7 +98,7 @@ fn catalog_from_bytes(bytes: &[u8], locale: crate::Locale) -> Result<LockTypeCat
             names.insert(id, name);
         }
     }
-    Ok(LockTypeCatalog { cursors, names })
+    LockTypeCatalog { cursors, names }
 }
 
 #[cfg(test)]

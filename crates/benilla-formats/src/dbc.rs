@@ -21,6 +21,18 @@ pub(crate) fn parse(bytes: &[u8], schema: Schema, what: &str) -> Result<RecordSe
         .map_err(|e| anyhow!("parsing {what} records: {e}"))
 }
 
+/// A DBC as records: the `DBFilesClient` table when the chain carries one and it matches
+/// `schema`, else the patch chain's file parsed as a WDBC.
+pub(crate) fn load(chain: &mut Chain, file: &str, schema: Schema, what: &str) -> Result<RecordSet> {
+    if let Some(rs) = chain.dbc_record_set(file, &schema) {
+        return Ok(rs);
+    }
+    let bytes = chain
+        .read_file(file)
+        .with_context(|| format!("reading {file}"))?;
+    parse(&bytes, schema, what)
+}
+
 /// An unsigned field, from either int variant: the schema tag only picks the decoding.
 pub(crate) fn u32_at(r: &Record, i: usize) -> Option<u32> {
     match r.get_value(i)? {
@@ -83,13 +95,15 @@ pub(crate) fn loc_str_raw(
 
 /// `SpellIcon.dbc`: id → extensionless texture path (`Interface\Icons\…`).
 pub(crate) fn load_spell_icon_map(chain: &mut Chain) -> Result<HashMap<u32, String>> {
-    let bytes = chain
-        .read_file("DBFilesClient\\SpellIcon.dbc")
-        .context("reading SpellIcon.dbc")?;
     let mut schema = Schema::new("SpellIcon");
     schema.add_field(SchemaField::new("ID", FieldType::UInt32));
     schema.add_field(SchemaField::new("TextureFilename", FieldType::String));
-    let set = parse(&bytes, schema, "SpellIcon.dbc")?;
+    let set = load(
+        chain,
+        "DBFilesClient\\SpellIcon.dbc",
+        schema,
+        "SpellIcon.dbc",
+    )?;
     let mut icons = HashMap::new();
     for r in set.records() {
         if let (Some(id), Some(path)) = (u32_at(r, 0), str_at(&set, r, 1)) {
@@ -122,10 +136,7 @@ pub(crate) fn load_id_name_table(
     cols: usize,
     what: &str,
 ) -> Result<HashMap<u32, String>> {
-    let bytes = chain
-        .read_file(file)
-        .with_context(|| format!("reading {file}"))?;
-    let rs = parse(&bytes, id_name_schema(what, name_col, cols), what)?;
+    let rs = load(chain, file, id_name_schema(what, name_col, cols), what)?;
     let locale = chain.locale();
     let mut out = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {

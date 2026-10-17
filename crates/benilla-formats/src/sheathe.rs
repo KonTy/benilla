@@ -6,10 +6,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
+
 use crate::Chain;
 
 /// One row's kit pair.
@@ -62,10 +64,12 @@ fn schema() -> Schema {
 
 /// Read `SheatheSoundLookups.dbc` off the patch chain.
 pub fn load_sheathe_sound_catalog(chain: &mut Chain) -> Result<SheatheSoundCatalog> {
-    let bytes = chain
-        .read_file("DBFilesClient\\SheatheSoundLookups.dbc")
-        .context("reading SheatheSoundLookups.dbc")?;
-    let rs = parse(&bytes, schema(), "SheatheSoundLookups")?;
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\SheatheSoundLookups.dbc",
+        schema(),
+        "SheatheSoundLookups",
+    )?;
     let mut rows = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let g = |i: usize| u32_at(r, i).unwrap_or(0);

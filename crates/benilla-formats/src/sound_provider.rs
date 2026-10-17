@@ -5,10 +5,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{f32_at, parse, str_at, u32_at};
+use crate::dbc::{f32_at, str_at, u32_at};
+
 use crate::Chain;
 
 /// One reverb preset's EAX2 listener properties.
@@ -95,10 +97,12 @@ fn schema() -> Schema {
 
 /// Read `SoundProviderPreferences.dbc` off the patch chain.
 pub fn load_sound_provider_catalog(chain: &mut Chain) -> Result<SoundProviderCatalog> {
-    let bytes = chain
-        .read_file("DBFilesClient\\SoundProviderPreferences.dbc")
-        .context("reading SoundProviderPreferences.dbc")?;
-    let rs = parse(&bytes, schema(), "SoundProviderPreferences")?;
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\SoundProviderPreferences.dbc",
+        schema(),
+        "SoundProviderPreferences",
+    )?;
     let mut providers = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };

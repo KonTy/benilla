@@ -7,11 +7,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
 use crate::chain::Chain;
-use crate::dbc::{f32_at, parse, u32_at};
+use crate::dbc::{f32_at, u32_at};
 
 const DURABILITY_COSTS: &str = "DBFilesClient\\DurabilityCosts.dbc";
 const DURABILITY_QUALITIES: &str = "DBFilesClient\\DurabilityQuality.dbc";
@@ -98,10 +99,7 @@ fn qualities_schema() -> Schema {
 
 /// Load both durability tables off the patch chain.
 pub fn load_durability_tables(chain: &mut Chain) -> Result<DurabilityTables> {
-    let bytes = chain
-        .read_file(DURABILITY_COSTS)
-        .with_context(|| format!("reading {DURABILITY_COSTS}"))?;
-    let rs = parse(&bytes, costs_schema(), "DurabilityCosts")?;
+    let rs = crate::dbc::load(chain, DURABILITY_COSTS, costs_schema(), "DurabilityCosts")?;
     let mut costs = HashMap::new();
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };
@@ -109,10 +107,12 @@ pub fn load_durability_tables(chain: &mut Chain) -> Result<DurabilityTables> {
         costs.insert(id, row);
     }
 
-    let bytes = chain
-        .read_file(DURABILITY_QUALITIES)
-        .with_context(|| format!("reading {DURABILITY_QUALITIES}"))?;
-    let rs = parse(&bytes, qualities_schema(), "DurabilityQuality")?;
+    let rs = crate::dbc::load(
+        chain,
+        DURABILITY_QUALITIES,
+        qualities_schema(),
+        "DurabilityQuality",
+    )?;
     let mut qualities = HashMap::new();
     for r in rs.records() {
         let (Some(id), Some(mult)) = (u32_at(r, 0), f32_at(r, 1)) else {

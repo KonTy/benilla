@@ -10,10 +10,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{f32_at, parse, u32_at};
+use crate::dbc::{f32_at, u32_at};
+
 use crate::Chain;
 
 const CAMERA_SHAKES: &str = "DBFilesClient\\CameraShakes.dbc";
@@ -136,10 +138,7 @@ fn spell_effect_camera_shakes_schema() -> Schema {
 /// Read both camera-shake tables off the patch chain. A missing or malformed table is an error;
 /// the caller's fallback is the empty catalog, no shakes at all.
 pub fn load_camera_shakes(chain: &mut Chain) -> Result<CameraShakeCatalog> {
-    let bytes = chain
-        .read_file(CAMERA_SHAKES)
-        .with_context(|| format!("reading {CAMERA_SHAKES}"))?;
-    let rs = parse(&bytes, camera_shakes_schema(), "CameraShakes")?;
+    let rs = crate::dbc::load(chain, CAMERA_SHAKES, camera_shakes_schema(), "CameraShakes")?;
     let mut rows = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };
@@ -158,11 +157,9 @@ pub fn load_camera_shakes(chain: &mut Chain) -> Result<CameraShakeCatalog> {
         );
     }
 
-    let bytes = chain
-        .read_file(SPELL_EFFECT_CAMERA_SHAKES)
-        .with_context(|| format!("reading {SPELL_EFFECT_CAMERA_SHAKES}"))?;
-    let gs = parse(
-        &bytes,
+    let gs = crate::dbc::load(
+        chain,
+        SPELL_EFFECT_CAMERA_SHAKES,
         spell_effect_camera_shakes_schema(),
         "SpellEffectCameraShakes",
     )?;

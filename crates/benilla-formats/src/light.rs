@@ -4,10 +4,12 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{f32_at, parse, str_at, u32_at};
+use crate::dbc::{f32_at, str_at, u32_at};
+
 use crate::Chain;
 
 mod atmosphere;
@@ -231,10 +233,7 @@ impl LightCatalog {
     /// Read the lighting DBCs off the patch chain.
     pub fn load(chain: &mut Chain) -> Result<Self> {
         let lights = {
-            let bytes = chain
-                .read_file(LIGHT)
-                .with_context(|| format!("reading {LIGHT}"))?;
-            let rs = parse(&bytes, light_schema(), "Light")?;
+            let rs = crate::dbc::load(chain, LIGHT, light_schema(), "Light")?;
             let mut v = Vec::with_capacity(rs.records().len());
             for r in rs.records() {
                 if let (Some(id), Some(map), Some(x), Some(y), Some(z), Some(start), Some(end)) = (
@@ -285,10 +284,7 @@ impl LightCatalog {
             light_params_water_alpha,
             light_params_skybox,
         ) = {
-            let bytes = chain
-                .read_file(LIGHT_PARAMS)
-                .with_context(|| format!("reading {LIGHT_PARAMS}"))?;
-            let rs = parse(&bytes, light_params_schema(), "LightParams")?;
+            let rs = crate::dbc::load(chain, LIGHT_PARAMS, light_params_schema(), "LightParams")?;
             let mut glow = HashMap::with_capacity(rs.records().len());
             let mut highlight = HashMap::with_capacity(rs.records().len());
             let mut water_alpha = HashMap::with_capacity(rs.records().len());
@@ -320,13 +316,10 @@ impl LightCatalog {
             (glow, highlight, water_alpha, skybox)
         };
         let skyboxes = {
-            let bytes = chain
-                .read_file(LIGHT_SKYBOX)
-                .with_context(|| format!("reading {LIGHT_SKYBOX}"))?;
             let mut schema = Schema::new("LightSkybox");
             schema.add_field(SchemaField::new("ID", FieldType::UInt32));
             schema.add_field(SchemaField::new("Name", FieldType::String));
-            let rs = parse(&bytes, schema, "LightSkybox")?;
+            let rs = crate::dbc::load(chain, LIGHT_SKYBOX, schema, "LightSkybox")?;
             let mut m = HashMap::with_capacity(rs.records().len());
             for r in rs.records() {
                 if let (Some(id), Some(path)) = (u32_at(r, 0), str_at(&rs, r, 1)) {

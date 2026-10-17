@@ -6,10 +6,11 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
 
 /// One `CreatureSoundData` row; every field is a `SoundEntries` kit id (0 for none) unless noted.
 pub struct CreatureVoice {
@@ -105,10 +106,12 @@ fn cmd_schema() -> Schema {
 
 /// Read the three tables off the patch chain into the joined catalog.
 pub fn load_creature_voice_catalog(chain: &mut Chain) -> Result<CreatureVoiceCatalog> {
-    let bytes = chain
-        .read_file("DBFilesClient\\CreatureSoundData.dbc")
-        .context("reading CreatureSoundData.dbc")?;
-    let rs = parse(&bytes, csd_schema(), "CreatureSoundData")?;
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\CreatureSoundData.dbc",
+        csd_schema(),
+        "CreatureSoundData",
+    )?;
     let mut rows = HashMap::with_capacity(rs.records().len());
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };
@@ -139,10 +142,12 @@ pub fn load_creature_voice_catalog(chain: &mut Chain) -> Result<CreatureVoiceCat
         );
     }
 
-    let bytes = chain
-        .read_file("DBFilesClient\\CreatureModelData.dbc")
-        .context("reading CreatureModelData.dbc")?;
-    let rs = parse(&bytes, cmd_schema(), "CreatureModelData")?;
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\CreatureModelData.dbc",
+        cmd_schema(),
+        "CreatureModelData",
+    )?;
     let mut model_to_sound = HashMap::new();
     for r in rs.records() {
         if let (Some(id), Some(sound)) = (u32_at(r, 0), u32_at(r, 13)) {
@@ -152,10 +157,12 @@ pub fn load_creature_voice_catalog(chain: &mut Chain) -> Result<CreatureVoiceCat
         }
     }
 
-    let bytes = chain
-        .read_file("DBFilesClient\\CreatureDisplayInfo.dbc")
-        .context("reading CreatureDisplayInfo.dbc")?;
-    let rs = parse(&bytes, cdi_schema(), "CreatureDisplayInfo")?;
+    let rs = crate::dbc::load(
+        chain,
+        "DBFilesClient\\CreatureDisplayInfo.dbc",
+        cdi_schema(),
+        "CreatureDisplayInfo",
+    )?;
     let mut display_to_sound = HashMap::new();
     for r in rs.records() {
         let (Some(id), Some(sound), Some(model)) = (u32_at(r, 0), u32_at(r, 2), u32_at(r, 1))

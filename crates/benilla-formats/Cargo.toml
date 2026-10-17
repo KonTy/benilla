@@ -28,6 +28,7 @@ benilla-blp = { path = "../benilla-blp" }
 image = { version = "0.25", default-features = false, features = ["png"] }
 benilla-wdt = { path = "../benilla-wdt" }
 benilla-wmo = { path = "../benilla-wmo" }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
 
 [dev-dependencies]
 glam = "0.31"

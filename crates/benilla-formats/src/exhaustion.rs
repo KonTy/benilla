@@ -3,10 +3,10 @@
 //! string block (not GlobalStrings) and the factor. `GetXPExhaustion` (`0x48d3f0`) scales the
 //! rested pool by row 1's factor, 2.0 in the data. Rows 3-5 are beta tiers never sent.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{f32_at, loc_str, parse, u32_at};
+use crate::dbc::{f32_at, loc_str, u32_at};
 use crate::Chain;
 
 const EXHAUSTION: &str = "DBFilesClient\\Exhaustion.dbc";
@@ -38,10 +38,7 @@ fn exhaustion_schema() -> Schema {
 
 /// Load Exhaustion.dbc from the patch chain.
 pub fn load_exhaustion(chain: &mut Chain) -> Result<Vec<ExhaustionRow>> {
-    let bytes = chain
-        .read_file(EXHAUSTION)
-        .with_context(|| format!("reading {EXHAUSTION}"))?;
-    let rs = parse(&bytes, exhaustion_schema(), "Exhaustion")?;
+    let rs = crate::dbc::load(chain, EXHAUSTION, exhaustion_schema(), "Exhaustion")?;
     let locale = chain.locale();
     let mut rows = Vec::with_capacity(rs.records().len());
     for r in rs.records() {

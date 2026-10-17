@@ -8,10 +8,12 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, RecordSet, Schema, SchemaField};
 
-use crate::dbc::{parse, str_at, u32_at};
+use crate::dbc::{str_at, u32_at};
+
 use crate::models::model_path;
 
 const ITEM_DISPLAY_INFO: &str = "DBFilesClient\\ItemDisplayInfo.dbc";
@@ -183,16 +185,19 @@ fn catalog_from_records(rs: RecordSet) -> ItemDisplayCatalog {
 
 /// Load `ItemDisplayInfo.dbc` off the patch chain into an [`ItemDisplayCatalog`].
 pub fn load_item_display_catalog(chain: &mut Chain) -> Result<ItemDisplayCatalog> {
-    let bytes = chain
-        .read_file(ITEM_DISPLAY_INFO)
-        .with_context(|| format!("reading {ITEM_DISPLAY_INFO}"))?;
-    let rs = parse(&bytes, item_display_info_schema(), "ItemDisplayInfo")?;
+    let rs = crate::dbc::load(
+        chain,
+        ITEM_DISPLAY_INFO,
+        item_display_info_schema(),
+        "ItemDisplayInfo",
+    )?;
     Ok(catalog_from_records(rs))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dbc::parse;
 
     /// A minimal synthetic WDBC: 20-byte header, fixed-width records, string block.
     fn build_wdbc(

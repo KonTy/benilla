@@ -3,10 +3,12 @@
 //! (`GetRealmInfo`, `0x46efda`), the character screen's `GetServerName` (`0x46d280`) and at world
 //! entry (`0x4015b1`, the latch `GetZonePVPInfo` reads).
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
+
 use crate::Chain;
 
 const CFG_CONFIGS: &str = "DBFilesClient\\Cfg_Configs.dbc";
@@ -60,10 +62,7 @@ fn cfg_configs_schema() -> Schema {
 
 /// Every row of `Cfg_Configs.dbc`.
 pub fn load_realm_configs(chain: &mut Chain) -> Result<RealmConfigs> {
-    let bytes = chain
-        .read_file(CFG_CONFIGS)
-        .with_context(|| format!("reading {CFG_CONFIGS}"))?;
-    let rs = parse(&bytes, cfg_configs_schema(), "Cfg_Configs")?;
+    let rs = crate::dbc::load(chain, CFG_CONFIGS, cfg_configs_schema(), "Cfg_Configs")?;
     Ok(RealmConfigs(
         rs.records()
             .iter()

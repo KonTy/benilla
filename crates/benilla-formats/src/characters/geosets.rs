@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{parse, u32_at};
+use crate::dbc::u32_at;
+
 use crate::Chain;
 
 const CHAR_HAIR_GEOSETS: &str = "DBFilesClient\\CharHairGeosets.dbc";
@@ -182,10 +184,12 @@ impl CharacterGeosets {
     /// CharHairGeosets lists goblin male variation 0 four times (geosets 1, 2, 1, 2).
     pub fn load(chain: &mut Chain) -> Result<Self> {
         let hair = {
-            let bytes = chain
-                .read_file(CHAR_HAIR_GEOSETS)
-                .with_context(|| format!("reading {CHAR_HAIR_GEOSETS}"))?;
-            let rs = parse(&bytes, char_hair_geosets_schema(), "CharHairGeosets")?;
+            let rs = crate::dbc::load(
+                chain,
+                CHAR_HAIR_GEOSETS,
+                char_hair_geosets_schema(),
+                "CharHairGeosets",
+            )?;
             let mut m = HashMap::with_capacity(rs.records().len());
             for r in rs.records() {
                 // fields: ID, RaceID, SexID, VariationID(hairStyle), GeosetID, ShowScalp.
@@ -200,11 +204,9 @@ impl CharacterGeosets {
             m
         };
         let facial = {
-            let bytes = chain
-                .read_file(CHAR_FACIAL_HAIR)
-                .with_context(|| format!("reading {CHAR_FACIAL_HAIR}"))?;
-            let rs = parse(
-                &bytes,
+            let rs = crate::dbc::load(
+                chain,
+                CHAR_FACIAL_HAIR,
                 char_facial_hair_schema(),
                 "CharacterFacialHairStyles",
             )?;
@@ -226,9 +228,13 @@ impl CharacterGeosets {
             m
         };
         // HelmetGeosetVisData, the helm hide-masks: without the file, helms hide nothing.
-        let helmet_vis = match chain.read_file(HELMET_GEOSET_VIS) {
-            Ok(bytes) => {
-                let rs = parse(&bytes, helmet_vis_schema(), "HelmetGeosetVisData")?;
+        let helmet_vis = match crate::dbc::load(
+            chain,
+            HELMET_GEOSET_VIS,
+            helmet_vis_schema(),
+            "HelmetGeosetVisData",
+        ) {
+            Ok(rs) => {
                 let mut m = HashMap::with_capacity(rs.records().len());
                 for r in rs.records() {
                     if let Some(id) = u32_at(r, 0) {
@@ -302,6 +308,7 @@ pub(crate) fn char_facial_hair_schema() -> Schema {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dbc::parse;
 
     #[test]
     fn geoset_visibility_preserves_unmanaged_ids() {

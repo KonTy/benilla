@@ -4,10 +4,10 @@
 use std::collections::HashMap;
 
 use crate::Chain;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use benilla_dbc::{FieldType, Schema, SchemaField};
 
-use crate::dbc::{i32_at, loc_str, parse, u32_at};
+use crate::dbc::{i32_at, loc_str, u32_at};
 
 const SHAPESHIFT_FORM: &str = "DBFilesClient\\SpellShapeshiftForm.dbc";
 
@@ -56,9 +56,6 @@ impl ShapeshiftForm {
 /// `GetBonusBarOffset` (`0x4e7620`) returns what the `UPDATE_BONUS_ACTIONBAR` handler (`0x4e4fc0`)
 /// read from column 1 for the player's form. `flags1` feeds the form gate (`0x612480`).
 pub fn load_shapeshift_forms(chain: &mut Chain) -> Result<HashMap<u32, ShapeshiftForm>> {
-    let bytes = chain
-        .read_file(SHAPESHIFT_FORM)
-        .context("reading SpellShapeshiftForm.dbc")?;
     let mut schema = Schema::new("SpellShapeshiftForm");
     for i in 0..14 {
         match i {
@@ -67,7 +64,7 @@ pub fn load_shapeshift_forms(chain: &mut Chain) -> Result<HashMap<u32, Shapeshif
             _ => schema.add_field(SchemaField::new(format!("F{i}"), FieldType::UInt32)),
         }
     }
-    let set = parse(&bytes, schema, "SpellShapeshiftForm.dbc")?;
+    let set = crate::dbc::load(chain, SHAPESHIFT_FORM, schema, "SpellShapeshiftForm.dbc")?;
     let locale = chain.locale();
     // AttackIconID resolves through SpellIcon.dbc like a spell's own icon (`0x4e68af`-`0x4e68da`).
     let icons = crate::dbc::load_spell_icon_map(chain)?;
