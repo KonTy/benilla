@@ -1,123 +1,152 @@
 <div align="center">
   <h1>benilla</h1>
-  <p><b>A complete World of Warcraft 1.12.1 client, written from scratch in Rust and <a href="https://bevy.org">Bevy</a></b></p>
+  <p><b>A complete World of Warcraft client, written from scratch in Rust and <a href="https://bevy.org">Bevy</a></b></p>
   <p>
     <a href="https://discord.gg/wJSJx467G4"><img src="https://img.shields.io/discord/1529280129518538922?style=for-the-badge&logo=discord&logoColor=white&label=discord&color=5865F2" alt="Discord"></a>
     <a href="https://www.youtube.com/playlist?list=PLdCnpZNKxyb8"><img src="https://img.shields.io/badge/devlog-youtube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="YouTube devlog"></a>
     <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-blue?style=for-the-badge" alt="License"></a>
   </p>
-</div>
+  <p>
+    <a href="#this-fork"><img src="https://img.shields.io/badge/fork-3.3.5%20%7C%20Wrath-of-the-Lich-King-7a3ce8?style=for-the-badge" alt="The 3.3.5 fork"></a>
+  </p>
+</div
 
-benilla plays the whole game: character creation, questing and professions, dungeons and raids,
-battlegrounds and honor, groups, guilds, trade, mail and the auction house, on the stock 1.12
-interface and with your addons. It connects to a 1.12.1 server over the original protocol and
-reads the game's data from your own 1.12.1 install. Every file format, the network protocol and
-the interface engine are written from scratch, with no original client code, no third-party WoW
-crates and no bundled game assets.
+benilla is the [upstream project](https://github.com/samwhosung/benilla): a complete World of
+Warcraft 1.12.1 client. It plays the whole game — character creation, questing and professions,
+dungeons and raids, battlegrounds and honor, groups, guilds, trade, mail and the auction house,
+on the stock interface and with your addons — connecting to a 1.12.1 server over the original
+protocol and reading the game's data from your own install. Every file format, the network
+protocol and the interface engine are written from scratch, with no original client code, no
+third-party WoW crates and no bundled game assets.
 
-What the real client does is read at its bytes in
-[benilla-re](https://github.com/samwhosung/benilla-re), the reverse engineering benilla is built
-against, by the same client addresses the comments here cite.
+**This is the 3.3.5 fork** — where the Wrath of the Lich King work lives. Upstream takes only
+changes that make the client more like 1.12.1 (its `docs/CONTRIBUTING.md` says so, and its
+maintainer pointed 3.3.5 work here); so the fork carries the Wrath work in a `3.3.5` branch on
+top of a `main` that tracks upstream, the way Trinity Core carries a version line on top of
+trunk ([Branches](#branches)). One feature per branch, verified against real 3.3.5 client files
+before it lands.
 
-## What's inside
+## This fork
 
-- **Formats:** readers for the whole asset stack (the MPQ patch chain, BLP, DBC, ADT, WDT, WDL, M2
-  and WMO), wired into Bevy as an asset source.
-- **World:** terrain streamed out to the horizon, portal-culled buildings with interior lighting,
-  doodads and ground clutter, swimmable water, sky and weather, and the client's own day/night
-  lighting, fog and gamma.
-- **Models:** GPU-skinned M2s with the full animation controller, particles, ribbons and the spell
-  visuals, and characters end to end: customization, the armor composite, weapons with their
-  enchant glows, forms, stealth and mounts.
-- **Movement:** networked movement in both directions, the server-granted modes from slow fall to
-  roots, a follow camera with collision, boats, zeppelins and taxi flights.
-- **Networking:** SRP6 auth through world-session crypto and the object mirror into the ECS,
-  covering the game from movement and chat through combat, spells, groups and raids, quests,
-  trade, mail, the auction house and battlegrounds.
-- **Interface:** a FrameXML and Lua engine that runs the stock 1.12 interface off your install's
-  patch chain, and third-party 1.12 addons: Questie, pfUI, Bagnon, Bartender2 and most others
-  run. By choice, the options window and the ESC menu follow the Classic Era client's rather than
-  1.12's.
-- **Audio:** music, ambience and effects under the client's own selection and crossfade rules,
-  with interior and underwater transitions and zone reverb.
+Two features are in, both on top of current upstream `main`:
 
-The format readers and the UI engine core are plain Rust with no Bevy in them, and the world
-renderer runs with no game attached. [`docs/MAP.md`](docs/MAP.md) maps every crate and subsystem,
-and [`docs/DEVIATIONS.md`](docs/DEVIATIONS.md) lists everywhere benilla differs from 1.12.1; both are
-generated from the code.
+**The Wrath model reader.** A new version-aware `M2Layout` in `benilla-m2` carries every
+version-dependent offset and stride for builds 256–264 in one place. Wrath (264) files are read
+through it: the nested per-sequence `M2Track` (each sequence its own key clip, rebased by band
+start), the 36-byte event record with its value-less timer track, the `0x1dc` particle record
+with keyed `u16`-timestamp over-life, the `0xb0` ribbon record, and the external `SKIN` geometry
+file the profile no longer embeds. Pre-Wrath (256–263) keeps the reference layout
+byte-for-byte. Byte-verified against a real Wrath file — the Icecrown raid axe
+(`Axe_2H_IcecrownRaid_D_01.M2` + its `_0100.skin`): five skin batches, stand
+sequence/skeleton/bounds, the `$WTT`/`$WTB` events, the emitter's over-life tracks, all asserted
+bit-exact.
+
+**The `DBFilesClient` DBC source, behind a swappable seam.** 3.x clients read their DBC tables
+from a `DBFilesClient` sqlite file instead of loose WDBC files. This fork's `Chain` adopts a
+`DbcProvider` at open when a `Data` folder ships that file (a single-MPQ chain or an absent file
+has none), and `crate::dbc::load` — the facade every table loader uses — asks the provider first
+and reads the patch chain's WDBC file when it does not carry the table or its layout does not
+match the loader's schema. Everything sqlite stays in `benilla-formats/src/dbfiles.rs`: the
+layout probe, the column decode, the string slots; the ~90 loaders see only `RecordSets`. A
+different source later — another database, a test fixture — is a new `DbcProvider` implementation
+adopted in the one place that selects it. The decode is verified table-for-table against the
+patch chain's files: 154 tables in a real 3.3.5 file round-trip with one mismatch, the known
+data-state difference in ItemDisplayInfo (29604 vs 29605), not a decode difference.
+
+An install with no `DBFilesClient` behaves exactly like upstream: 1.12.1 is untouched by this
+fork by default.
+
+## Branches
+
+The fork keeps the upstream line alive, so the 1.12.1 improvements keep flowing in — the shape
+Trinity Core gives a version line:
+
+- **`main`** mirrors upstream `main`, the 1.12.1 line. It is a clean tracking branch: fetch the
+  upstream, advance `main`, and nothing fork-specific lives on it.
+- **`3.3.5`** is this line: the two features above, on current `main`. Build from here.
+
+Integrating upstream is a merge: `git fetch upstream`, advance `main`, then `git merge main`
+into `3.3.5` and resolve the overlap — the docs regenerate with `scripts/genmap.sh`, and
+`scripts/check.sh` decides. A new 3.3.5 feature lands the same way: its own branch, verified
+against real files, merged into `3.3.5`.
+
+Upstream is [samwhosung/benilla](https://github.com/samwhosung/benilla). A clone made from the
+fork link carries it as `upstream` already; otherwise
+`git remote add upstream https://github.com/samwhosung/benilla`.
 
 ## Status
 
-Complete and fully playable. What is left:
+- **1.12.1:** complete and fully playable, exactly as upstream — see
+  [the upstream README](https://github.com/samwhosung/benilla) for the whole inventory.
+- **3.3.5, what is in:** the Wrath M2 model reader (verified against real files, above) and the
+  `DBFilesClient` DBC source (verified against a real 3.3.5 file, above).
+- **3.3.5, what is not:** a Wrath connection. The wire protocol is still 1.12.1's, and the map
+  and interface stacks have not been walked against 3.3.5 data. That is the work below.
 
-- The long tail of small features that separates a working client from a finished one, tracked
-  as [issues](https://github.com/samwhosung/benilla/issues).
-- Addons, options and performance, ongoing.
+## Jump in here
 
-benilla is a faithful 1.12.1 client and the foundation people build on. There are no prebuilt
-downloads: a packaged build, a particular server's changes or anything 1.12.1 never had belongs
-in a fork, and forks are welcome. GitHub lists
-[every public fork](https://github.com/samwhosung/benilla/forks).
+The fork is a list of known unknowns, in roughly the order a Wrath client needs them:
 
-Not planned: other expansions or client versions, Warden (anticheat).
+1. **The 3.3.5 wire protocol** — the critical path. `benilla-protocol` and `benilla-srp` speak
+   5875; a 3.3.5 server speaks build 264. The reverse-engineering notes upstream builds against
+   ([benilla-re](https://github.com/samwhosung/benilla-re)) are the 1.12.1 client's addresses;
+   the 3.3.5 client's are the new corpus. Auth, opcodes, the object mirror, the delta encoding.
+2. **The map stack at 3.3.5** — verify the ADT/WDT readers against Wrath files (both are v131
+   through 3.3.5, so this may be close), and extend the WMO reader to the Wrath version. The M2
+   side of it is done.
+3. **The DBC seam, wider** — more `DbcProvider` coverage (the loaders that hand-parse WDBC bytes
+   today), a second implementation, or the test fixture a provider needs to be tested without a
+   3.3.5 install. The seam is in `benilla-formats/src/dbfiles.rs`.
+4. **The 3.3.5 tables and UI** — where Wrath's FrameXML and table set diverge from 1.12's, the
+   UI engine and the loaders follow.
+5. **Keeping the fork honest** — merge `main` into `3.3.5` as upstream moves (both features
+   already sit on current `main`), and keep one feature per branch with the real-file
+   verification that lands it.
+
+[`docs/MAP.md`](docs/MAP.md) maps every crate and subsystem, [`docs/DEVIATIONS.md`](docs/DEVIATIONS.md)
+lists everywhere benilla differs from the reference client, and
+[`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) says how a change is judged; both are generated
+from the code.
 
 ## Running it
 
-benilla builds and runs on macOS, Linux and Windows. You need:
-
-- **A 1.12.1 client (build 5875)** for the game data, in any locale. benilla only reads it, and
-  shows its text in the client's language; development runs on English clients.
-- **A 1.12.1 server.** [vmangos](https://github.com/vmangos/core) is what development runs
-  against; cMaNGOS and the other 1.12.1 cores speak the same protocol. benilla does not answer
-  Warden, so a server that enforces it disconnects the session after its timeout; vmangos ships
-  with Warden off.
-- **Stable Rust and a C compiler**, which some dependencies build with: on macOS the
-  Xcode command line tools, on Linux the ALSA and udev development packages and pkg-config, on
-  Windows the MSVC build tools that the Rust installer sets up.
+The 1.12.1 client runs as upstream — a 1.12.1 install (build 5875), a 1.12.1 server with Warden
+off ([vmangos](https://github.com/vmangos/core) is what development runs against), stable Rust
+and a C compiler:
 
 ```sh
 WOW_DATA=/path/to/WoW/Data cargo run --release -p benilla
 ```
 
-On Windows, in PowerShell:
+The 3.3.5 DBC source is opt-in by presence: drop a `DBFilesClient` sqlite file into the install's
+`Data` folder and the chain adopts it at open, saying so —
+`benilla: adopting …/DBFilesClient as a DBC source (154 tables)`. Tables that match a loader's
+schema come from the file; everything else comes from the patch chain as before. Build a
+`DBFilesClient` file from a folder of extracted 3.3.5 DBCs with the `dbfiles` bin:
 
-```powershell
-$env:WOW_DATA="C:\path\to\WoW\Data"; cargo run --release -p benilla
+```sh
+cargo run -p benilla-formats --bin dbfiles -- /path/to/dbc-dir /path/to/DBFilesClient
 ```
 
-Each release is a tag on the [Releases page](https://github.com/samwhosung/benilla/releases):
-`git checkout <tag>` first runs that release, and `main` is the development tip.
-
-`WOW_DATA` names the install's `Data` folder; a link to the install named `WoW` at the repo root
-does the same (`ln -s /path/to/WoW WoW`, or on Windows a junction, which needs no admin rights:
-`New-Item -ItemType Junction -Path WoW -Target C:\path\to\WoW`). The server defaults to
-`localhost:3724`, the stock auth port. Point `WOW_HOST` at another (`WOW_HOST=play.example.com`, or
-`play.example.com:5000` for a remapped port), or set it from the Realmlist button on the login
-screen, which remembers it. Credentials go in at the login screen, or set `WOW_USER` and `WOW_PASS`
-to skip it.
-
-Settings, screenshots and addons live in `benilla-config/` at the repo root: a 1.12 addon goes in
-`benilla-config/AddOns/`. [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) has the rest, from the
-player build to the tests.
+The server, host, credentials and addon settings work exactly as upstream documents them.
 
 ## Contributing
 
-Issues and pull requests are open. [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) says where to
-start, what gets in, how a change is judged and what happens to a pull request once it is open.
-Bugs, questions and ideas are welcome on the [Discord](https://discord.gg/wJSJx467G4) too.
+Pull requests are open on this fork, one feature per branch, against `3.3.5`. The bar is the one upstream sets in
+[`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md): a change is read against the client's own
+behaviour, and the 3.3.5 work here follows the same discipline — pinned to a real client file,
+asserted bit-exact, with the verification in the pull request. Questions and ideas are welcome
+on the [Discord](https://discord.gg/wJSJx467G4).
 
 ---
 
-Early inspiration and file format guidance came from the
-[wowemulation-dev](https://github.com/wowemulation-dev) community, and
+benilla is an independent fan project, not affiliated with or endorsed by Blizzard
+Entertainment. It ships **no Blizzard content**: no art, models, sounds, maps, MPQ contents or
+FrameXML, in either client version. You provide your own legally obtained client, and the
+interface runs off its files at runtime. Early inspiration and file format guidance came from
+the [wowemulation-dev](https://github.com/wowemulation-dev) community, and
 [warcraft-rs](https://github.com/wowemulation-dev/warcraft-rs) in particular.
 
-benilla is an independent fan project, not affiliated with or endorsed by Blizzard Entertainment.
-It ships **no Blizzard content**: no art, models, sounds, maps, MPQ contents or FrameXML. You
-provide your own legally obtained 1.12.1 client, and the stock interface runs off its FrameXML at
-runtime. The few files under `crates/benilla-app/assets/ui/` are our own, not copies of it:
-adapters over stock files, and the settings windows and script error log benilla draws itself.
-
 World of Warcraft is a trademark of Blizzard Entertainment, Inc. Our own code is licensed under
-[MIT](LICENSE-MIT) or [Apache 2.0](LICENSE-APACHE), at your option. The kira audio engine under
-`third_party/` is vendored under the same two licenses, with its author's copyright notices beside it.
+[MIT](LICENSE-MIT) or [Apache 2.0](LICENSE-APACHE), at your option, as upstream's is. The two
+vendored components under `third_party/` keep their own upstream licenses, alongside each.
