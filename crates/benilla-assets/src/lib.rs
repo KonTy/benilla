@@ -606,13 +606,17 @@ mod tests {
             model.submeshes.iter().all(|s| s.texture.is_none()),
             "the item's object skin fills at the spawn site, not here"
         );
-        // The skin's four submesh vertex spans, in batch order.
+        // The SKIN's five batches draw sections [0, 1, 1, 2, 3]: section 1 has two passes.
         let verts: Vec<usize> = model
             .submeshes
             .iter()
             .map(|s| submesh_to_static_mesh(&s.geometry).count_vertices())
             .collect();
-        assert_eq!(verts, vec![24, 957, 32, 4], "each batch's unique vertices");
+        assert_eq!(
+            verts,
+            vec![24, 957, 957, 32, 4],
+            "each batch's unique vertices"
+        );
         for s in &model.submeshes {
             let mesh = submesh_to_static_mesh(&s.geometry);
             let skinned = submesh_to_skinned_mesh(&s.geometry);
