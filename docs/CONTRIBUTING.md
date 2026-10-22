@@ -99,6 +99,18 @@ out of scope is closed with the reason.
 
 ## Setting up
 
+- **One-command build.** From the repo root, `./build-benilla.sh` installs system prerequisites
+  on Debian/Ubuntu, Fedora and Arch derivatives, installs the toolchain pinned by
+  `rust-toolchain.toml` with clippy and rustfmt, and builds all workspace binaries with
+  `cargo build --locked --workspace --bins --profile release`. On macOS, install Xcode command
+  line tools and Homebrew first. System package installation may need `sudo`; do not run the
+  entire script with sudo. `--skip-system` and `--skip-toolchain` leave existing tools alone,
+  `--profile dev` selects a development build, and `--jobs N` caps compiler parallelism.
+  A Vulkan-capable GPU driver on Linux, your own game install and a server are separate.
+  `./run-benilla.sh` builds/runs the release client from any working directory; `WOW_DATA`
+  and `WOW_HOST` override its optional sibling `VanillaClient/Data` and local-server defaults.
+  Run `python3 scripts/test-tools.py` for the build/launcher contract tests, without installing
+  anything or logging into a server.
 - **The toolchain.** Stable Rust (`rust-toolchain.toml` adds clippy and rustfmt) and a C
   compiler, which some dependencies build with. On macOS the Xcode
   command line tools, which also supply libclang for the audio bindings; on Linux the ALSA and

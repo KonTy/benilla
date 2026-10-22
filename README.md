@@ -110,6 +110,30 @@ from the code.
 
 ## Running it
 
+For a new collaborator checkout on Linux, install the native build tools, the pinned Rust
+toolchain and compile **all workspace binaries** with:
+
+```sh
+./build-benilla.sh
+WOW_DATA=/path/to/WoW/Data ./run-benilla.sh
+```
+
+The build script supports Debian/Ubuntu, Fedora and Arch derivatives, plus macOS with
+Homebrew and Xcode command line tools already installed. It may ask for `sudo` for system
+packages; Rust and Cargo downloads run as your user. It does not download game data, a server
+or GPU drivers. `./build-benilla.sh --help` lists options, including `--jobs 2` for smaller
+machines and `--skip-system --skip-toolchain` for an already configured environment.
+Builds use the committed lockfile and include the client, world viewer, extractors and
+`dbfiles` tool. Tests and gates are separate; see
+[`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md#setting-up).
+
+[`run-benilla.sh`](run-benilla.sh) accepts optional user/password arguments or the existing
+`WOW_USER`/`WOW_PASS` environment variables; with neither, use the login screen.
+`WOW_HOST` defaults to `127.0.0.1:3724`. If `WOW_DATA` is unset, a sibling
+`VanillaClient/Data` directory is used when present; otherwise the normal install resolver
+applies. An explicitly empty `WOW_DATA` still means no install. The launcher runs Cargo so
+changed code is rebuilt, including when `CARGO_TARGET_DIR` points outside the checkout.
+
 The 1.12.1 client runs as upstream — a 1.12.1 install (build 5875), a 1.12.1 server with Warden
 off ([vmangos](https://github.com/vmangos/core) is what development runs against), stable Rust
 and a C compiler:
@@ -129,6 +153,12 @@ cargo run -p benilla-formats --bin dbfiles -- /path/to/dbc-dir /path/to/DBFilesC
 ```
 
 The server, host, credentials and addon settings work exactly as upstream documents them.
+
+Loose-file patch folders also mount in the data chain: `patch-a.MPQ/` or `patch-a.patch/`
+contains files at their archive-relative paths, such as `DBFilesClient/AreaTable.dbc`.
+They follow the same patch priority as the corresponding MPQ name. A real MPQ file wins
+over a folder with the same mount name; folder indexing is deterministic. Game files remain
+local to your install and must never be committed.
 
 ## Contributing
 

@@ -18,7 +18,7 @@
 - **benilla-lua** (no Bevy) — The Lua interpreter benilla's script host runs: 5.1.5 with the 1.12.1 client's grammar, its state as plain Rust data
 - **benilla-m2** (no Bevy) — M2 (MD20) model reader for WoW 1.12.1 (build 5875) and Wrath of the Lich King 3.3.5 (MD20 versions 256–264)
 - **benilla-mlua** (no Bevy) — The slice of mlua's API benilla uses, over benilla-lua
-- **benilla-mpq** (no Bevy) — Read-only MPQ archive reader for WoW 1.12.1 (build 5875)
+- **benilla-mpq** (no Bevy) — Read-only archive reader for the WoW 1.12.1 Data/ chain: MPQ files, and folders mounted under an archive name
 - **benilla-protocol** (no Bevy) — WoW 1.12.1 auth (SRP6) + world wire protocol and the benilla-auth CLI
 - **benilla-srp** (no Bevy) — WoW 1.12.1 (build 5875) SRP6 client and world-header crypto
 - **benilla-ui** (no Bevy) — Engine-free WoW UI engine core: TOC and FrameXML parsing, templates, anchors, z-order
@@ -531,6 +531,7 @@
 - `pass-span-lint.py` — Refuse a second open `pass_span` on the same render pass (a wgpu validation error on Vulkan).
 - `soundprobe.py` — Read back a `$WOW_SOUND_PROBE` capture and name the mechanism behind a speaker-breaking sound.
 - `sync-reference.py` — Vendor benilla-re's tables into `reference/` at the commit `reference/PIN` names.
+- `test-tools.py` — Build/launcher contracts using fake tools: no installs, compilation or login."""
 - `vplsum.py` — Read a `vpl`/`bub` overlay trace and say where the motion came from: projection, solve or snap.
 - `api-coverage.sh` — Addon-API coverage: how much of the 1.12.1 client's global surface benilla's UI VM presents.
 - `check.sh` — The in-loop verify: fmt everywhere, clippy and test on the changed crates and their dependents.

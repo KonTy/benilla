@@ -32,8 +32,9 @@ Each entry is the first sentence of a `Deviation:` comment, linking to where it 
 - [benilla-app](#benilla-app): 218
 - [benilla-assets](#benilla-assets): 6
 - [benilla-blp](#benilla-blp): 1
-- [benilla-formats](#benilla-formats): 17
+- [benilla-formats](#benilla-formats): 18
 - [benilla-lua](#benilla-lua): 3
+- [benilla-mpq](#benilla-mpq): 1
 - [benilla-protocol](#benilla-protocol): 20
 - [benilla-srp](#benilla-srp): 2
 - [benilla-ui](#benilla-ui): 112
@@ -487,7 +488,8 @@ Each entry is the first sentence of a `Deviation:` comment, linking to where it 
 
 #### chain
 
-- An archive that fails to open is an error, where the reference logs `"Failed to open archive"` and goes on, because a skipped corrupt archive surfaces only as missing files far downstream. ([`src/chain.rs:101`](../crates/benilla-formats/src/chain.rs#L101))
+- An archive that fails to open is an error, where the reference logs `"Failed to open archive"` and goes on, because a skipped corrupt archive surfaces only as missing files far downstream. ([`src/chain.rs:119`](../crates/benilla-formats/src/chain.rs#L119))
+- A folder under a mountable name mounts as a loose-file archive, where the 1.12.1 client finds it by the same name glob and its file layer rejects it at the open (packed MPQs only). ([`src/chain.rs:123`](../crates/benilla-formats/src/chain.rs#L123))
 
 #### characters
 
@@ -547,6 +549,11 @@ Each entry is the first sentence of a `Deviation:` comment, linking to where it 
 #### lib_string
 
 - 5.1's `match` recurses without a bound and overflows the C stack (near 32000 levels on 8 MB); this raises 5.2's `pattern too complex` instead. ([`src/lib_string.rs:477`](../crates/benilla-lua/src/lib_string.rs#L477))
+### benilla-mpq
+
+#### (crate root)
+
+- The 1.12.1 client's file layer opens only packed MPQs; a folder named for an archive is found by the mount glob there and rejected at the open. benilla reads it, so a loose tree can stand in for a patch without repacking one. ([`src/lib.rs:207`](../crates/benilla-mpq/src/lib.rs#L207))
 ### benilla-protocol
 
 #### auth
