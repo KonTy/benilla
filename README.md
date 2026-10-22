@@ -31,6 +31,8 @@ before it lands.
 The existing `3.3.5` branch already combines the Wrath model reader, optional SQLite DBC
 source, loose patch folders, encrypted MPQ reading, and build/launcher tools. Do not reapply
 the old split feature branches or create another integration branch to continue this work.
+For copy-and-run checks on a fresh Arch machine, start with
+[the three-feature test walkthrough](#clean-arch-test-m2-loose-folders-and-sqlite).
 
 **The Wrath model reader.** A new version-aware `M2Layout` in `benilla-m2` carries every
 version-dependent offset and stride for builds 256–264 in one place. Wrath (264) files are read
@@ -201,6 +203,164 @@ They follow the same patch priority as the corresponding MPQ name. A real MPQ fi
 over a folder with the same mount name; folder indexing is deterministic. Game files remain
 local to your install and must never be committed.
 
+## Clean Arch: test M2, loose folders and SQLite
+
+These checks do **not** need a game server, account, or GUI. Start with generated test data;
+then test your own weapon and DBC files in a separate, fully loose data tree. Do not delete or
+modify your original client install.
+
+### 1. Clone and build
+
+On a clean Arch machine, install Git, clone this branch, and let the bootstrap install the
+remaining native dependencies and pinned Rust toolchain:
+
+```sh
+sudo pacman -Syu --needed git
+git clone --branch 3.3.5 https://github.com/KonTy/benilla-3.3.5.git benilla
+cd benilla
+./build-benilla.sh --jobs 2
+export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
+export CARGO_BUILD_JOBS=2
+export CARGO_TARGET_DIR="$PWD/target/feature-check"
+```
+
+Run the remaining commands from this checkout in the same shell. The separate target folder
+keeps these smaller reader checks from changing the main client's build cache. SQLite is
+bundled by the Rust dependency: no separate SQLite server or `sqlite3` shell is needed.
+Stop if a command fails; a later successful command does not cancel an earlier failure.
+
+### 2. Prove all three reader features without supplying any game files
+
+```sh
+WOW_DATA= cargo test --locked -p benilla-m2 -p benilla-mpq --lib
+WOW_DATA= cargo test --locked -p benilla-formats --lib \
+  dbfiles::tests::patch_directories_combine_wrath_models_and_sqlite_without_mpq_files \
+  -- --exact --nocapture
+WOW_DATA= cargo test --locked -p benilla-formats --lib \
+  dbfiles::tests::roundtrip_matches_the_file_parse -- --exact
+WOW_DATA= cargo test --locked -p benilla-formats --lib \
+  dbfiles::tests::edited_string_cell_is_read -- --exact
+WOW_DATA= cargo test --locked -p benilla-formats --lib \
+  dbfiles::tests::decodes_without_a_file_header -- --exact
+```
+
+Expected at this baseline: **32 M2 tests and 20 MPQ tests pass**, followed by **one passing
+test for each exact formats selector**. Zero selected tests is not a pass.
+The combined test creates and removes its own temporary SQLite database and loose files:
+
+- It tests both a `patch-a.MPQ/` **directory** and a `patch-a.patch/` directory, with no packed
+  MPQ files. A `.MPQ` suffix does not mean the entry must be a packed archive.
+- It changes a SQLite string to `Gamma` while the loose DBC still contains `Beta`, then
+  verifies that the normal DBC-loading facade returns `Gamma`.
+- It verifies a table absent from SQLite falls back to its loose DBC and returns `Beta`.
+- It reads a generated version-264 M2 header and external SKIN through the same folder chain.
+  This is a structural fixture, not the real weapon's geometry or a visual equip test.
+
+The other three exact tests verify field-by-field SQLite/WDBC decoding, reading an edited
+SQLite cell, and decoding without a DBC file header. They do not need your database or original
+MPQs.
+
+### 3. Test your real Wrath weapon with no packed MPQs
+
+Point `WEAPON_SOURCE` at your own directory containing the named M2 and matching external
+skin. Adjust source filename case if necessary on Linux. Choose a new, empty `TEST_DATA`
+directory; if this example path already contains an earlier test, use another path:
+
+```sh
+export TEST_DATA="$HOME/benilla-feature-test/Data"
+export WEAPON_SOURCE="/path/to/your/weapon-files"
+mkdir -p "$TEST_DATA/patch-z.patch/Item/ObjectComponents/Weapon"
+cp "$WEAPON_SOURCE/Axe_2H_IcecrownRaid_D_01.M2" \
+  "$TEST_DATA/patch-z.patch/Item/ObjectComponents/Weapon/"
+cp "$WEAPON_SOURCE/Axe_2H_IcecrownRaid_D_0100.skin" \
+  "$TEST_DATA/patch-z.patch/Item/ObjectComponents/Weapon/"
+
+cargo run --locked -p benilla-formats --bin benilla-extract -- \
+  "$TEST_DATA" m2seq \
+  'Item/ObjectComponents/Weapon/Axe_2H_IcecrownRaid_D_01.M2'
+```
+
+The CLI should print the model's animation sequences, including Stand (`anim 0`). This checks
+the actual M2 in the loose folder; the next test checks its external skin and geometry.
+The `m2batch` CLI and `dump_skin` example still assume embedded skins, so do not use them as
+proof of Wrath external-skin geometry.
+
+For the **specific known axe fixture**, also exercise the Bevy asset loader and mesh conversion:
+
+```sh
+CARGO_TARGET_DIR="$PWD/target/asset-check" WOW_DATA="$TEST_DATA" BENILLA_REQUIRE_DATA=1 \
+  cargo test --locked -p benilla-assets --lib \
+  tests::loads_a_wrath_m2_through_the_pipeline -- --exact --nocapture
+```
+
+Expected: **one passed**, not zero tests or a data skip. The first Bevy test build is larger
+than the reader checks; its separate cache avoids switching the main workspace's feature set.
+For this fixture, it checks five batches and vertex counts `[24, 957, 957, 32, 4]`, drawing
+sections `[0, 1, 1, 2, 3]`. A differently authored model can have different valid counts:
+change the CLI's internal path for that model and retain its matching `00.skin` naming.
+Do not rename an arbitrary model to the fixture name and expect the pinned geometry test to pass.
+This geometry test needs no textures or server. For actual textured rendering, separately
+provide every BLP the model references at its correct archive-relative path.
+
+### 4. Build and check your own SQLite database from loose DBCs
+
+Point `DBC_SOURCE` at a directory of your own extracted **WDBC `.dbc` files**, not an MPQ.
+Include at least one supported table, such as `AreaTable.dbc`. Copy these into the loose patch
+as fallback files, then build a database from them:
+
+```sh
+export DBC_SOURCE="/path/to/your/extracted/DBFilesClient"
+mkdir -p "$TEST_DATA/patch-z.patch/DBFilesClient"
+cp -a "$DBC_SOURCE/." "$TEST_DATA/patch-z.patch/DBFilesClient/"
+cargo run --locked -p benilla-formats --bin dbfiles -- \
+  "$TEST_DATA/patch-z.patch/DBFilesClient" "$TEST_DATA/DBFilesClient"
+
+WOW_DATA="$TEST_DATA" BENILLA_REQUIRE_DATA=1 cargo test --locked \
+  -p benilla-formats --lib dbfiles::tests::every_table_roundtrips_against_the_patch_chain \
+  -- --exact --nocapture
+```
+
+`$TEST_DATA/DBFilesClient` is a **SQLite file with no extension**;
+`$TEST_DATA/patch-z.patch/DBFilesClient/` is a **directory of fallback DBCs**. Keep both for this
+round-trip recipe so the codec can be compared against the source files.
+Expected: the exporter reports a nonzero table count, chain opening prints
+`adopting .../DBFilesClient as a DBC source`, and the test reports a nonzero count of tables
+matched to their source bytes. The count depends on your inputs; it need not be 152.
+The strict round-trip test re-exports the chain bytes into a temporary database; it does not
+require an intentionally edited installed override to equal the original DBC.
+SQLite precedence and missing-table fallback are proved by step 2's combined test.
+The `benilla-extract dbc` command exports raw chain DBCs, so its CSV is **not** proof that a
+SQLite override was used.
+
+Your test data should now have this shape, with **no packed `.mpq` files**:
+
+```text
+Data/
+  DBFilesClient                         # SQLite file
+  patch-z.patch/
+    DBFilesClient/
+      AreaTable.dbc                     # and any other DBCs you supplied
+    Item/ObjectComponents/Weapon/
+      Axe_2H_IcecrownRaid_D_01.M2
+      Axe_2H_IcecrownRaid_D_0100.skin
+```
+
+### 5. Understand what this does not test
+
+The miniature tree proves model/skin reading, loose folders, and SQLite/fallback behavior.
+It is **not a complete game install**: running the client also needs all required UI, fonts,
+maps, textures and other game data, supplied packed or at the correct loose paths. It still
+needs a **1.12.1-compatible server**, not a 3.3.5 server. Weapon equipping also needs a matching
+server item and ItemDisplayInfo entry; no working equip ID has been established here.
+Use the [running instructions](#running-it) for a full install/server, and the explicit
+`WOW_NOVSYNC=1` workaround only if you encounter the documented NVIDIA presentation issue.
+Before returning to the main launcher, restore the default target folder so it reuses the
+release binaries built by the bootstrap:
+
+```sh
+unset CARGO_TARGET_DIR
+```
+
 ## Continuing on another machine
 
 ### Checkout, tools, data and server
@@ -288,7 +448,7 @@ MPQ support in `f0254d3`. This is a validation checkpoint, not a claim that ever
 | Build/launcher contracts | **21 passed**, including server ordering and real socket readiness |
 | Workspace rustfmt and all-target Clippy with warnings denied | Passed |
 | Full tests against the modified install | Failed; eight other reference assertions remain below |
-| Ubuntu implementation CI | [Run for `9e2aad8`](https://github.com/KonTy/benilla-3.3.5/actions/runs/39733786732); check its final conclusion |
+| Ubuntu implementation CI | [Run for `9e2aad8`](https://github.com/KonTy/benilla-3.3.5/actions/runs/39733786732) **passed**, including bootstrap/build, no-install and player-feature checks |
 | Native Nobara, macOS, full gameplay/combat and weapon equipping | Not verified |
 
 Ubuntu CI has no game install or display: its green result cannot prove rendering, live
