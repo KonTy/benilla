@@ -100,7 +100,7 @@ out of scope is closed with the reason.
 ## Setting up
 
 - **One-command build.** From the repo root, `./build-benilla.sh` installs system prerequisites
-  on Debian/Ubuntu, Fedora and Arch derivatives, installs the toolchain pinned by
+  on Debian/Ubuntu flavors, Nobara/Fedora and Arch derivatives, installs the toolchain pinned by
   `rust-toolchain.toml` with clippy and rustfmt, and builds all workspace binaries with
   `cargo build --locked --workspace --bins --profile release`. On macOS, install Xcode command
   line tools and Homebrew first. System package installation may need `sudo`; do not run the

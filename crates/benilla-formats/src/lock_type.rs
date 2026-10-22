@@ -10,7 +10,7 @@ use crate::Chain;
 use anyhow::Result;
 use benilla_dbc::{FieldType, RecordSet, Schema, SchemaField};
 
-use crate::dbc::{loc_str_raw, parse, str_at, u32_at};
+use crate::dbc::{loc_str_raw, str_at, u32_at};
 
 const LOCK_TYPE: &str = "DBFilesClient\\LockType.dbc";
 /// The file's column count, which `benilla-dbc` checks against the header.
@@ -78,23 +78,16 @@ pub fn load_lock_type_catalog(chain: &mut Chain) -> Result<LockTypeCatalog> {
     Ok(catalog_from_set(&rs, chain.locale()))
 }
 
-/// The catalog the `LockType.dbc` bytes hold, its names read at `locale`: the tests'
-/// synthetic rows never pass through the patch chain.
-fn catalog_from_bytes(bytes: &[u8], locale: crate::Locale) -> Result<LockTypeCatalog> {
-    let rs = parse(bytes, schema(), "LockType.dbc")?;
-    Ok(catalog_from_set(&rs, locale))
-}
-
 /// The catalog in a parsed `LockType.dbc`, its names read at `locale`.
 fn catalog_from_set(rs: &RecordSet, locale: crate::Locale) -> LockTypeCatalog {
     let mut cursors = HashMap::new();
     let mut names = HashMap::new();
     for r in rs.records() {
         let Some(id) = u32_at(r, 0) else { continue };
-        if let Some(name) = str_at(&rs, r, CURSOR_NAME_FIELD) {
+        if let Some(name) = str_at(rs, r, CURSOR_NAME_FIELD) {
             cursors.insert(id, name);
         }
-        if let Some(name) = loc_str_raw(&rs, r, NAME_FIELD, locale) {
+        if let Some(name) = loc_str_raw(rs, r, NAME_FIELD, locale) {
             names.insert(id, name);
         }
     }
@@ -104,6 +97,11 @@ fn catalog_from_set(rs: &RecordSet, locale: crate::Locale) -> LockTypeCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn catalog_from_bytes(bytes: &[u8], locale: crate::Locale) -> Result<LockTypeCatalog> {
+        let rs = crate::dbc::parse(bytes, schema(), "LockType.dbc")?;
+        Ok(catalog_from_set(&rs, locale))
+    }
 
     /// Two WDBC rows of the shipped shape: type 1 named, type 2 with a blank name column.
     fn synthetic() -> Vec<u8> {

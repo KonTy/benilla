@@ -118,7 +118,7 @@ toolchain and compile **all workspace binaries** with:
 WOW_DATA=/path/to/WoW/Data ./run-benilla.sh
 ```
 
-The build script supports Debian/Ubuntu, Fedora and Arch derivatives, plus macOS with
+The build script supports Debian/Ubuntu flavors, Nobara/Fedora and Arch derivatives, plus macOS with
 Homebrew and Xcode command line tools already installed. It may ask for `sudo` for system
 packages; Rust and Cargo downloads run as your user. It does not download game data, a server
 or GPU drivers. `./build-benilla.sh --help` lists options, including `--jobs 2` for smaller

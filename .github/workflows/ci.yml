@@ -33,11 +33,13 @@ jobs:
           persist-credentials: false
       - name: Free disk space
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-      - name: System libraries
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq pkg-config libasound2-dev libudev-dev
       - name: Toolchain
         run: rustup toolchain install && rustc -V
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Build and launcher contracts
+        run: bash -n build-benilla.sh run-benilla.sh && python3 scripts/test-tools.py
+      - name: Bootstrap dependencies and build all binaries
+        run: ./build-benilla.sh --skip-toolchain --profile dev --jobs 2
       - name: fmt
         run: cargo fmt --all -- --check
       - name: clippy

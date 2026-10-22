@@ -23,7 +23,7 @@ Options:
   --skip-toolchain  Use cargo/rustc from PATH; do not install or update Rust
   -h, --help        Show this help without installing or building anything
 
-Native dependency installation supports Debian/Ubuntu, Fedora and Arch Linux
+Native dependency installation supports Debian/Ubuntu, Nobara/Fedora and Arch Linux
 (including derivatives), and macOS with Homebrew and Xcode command line tools.
 System packages may prompt for sudo. Rust is installed per user, never as root.
 EOF
@@ -75,7 +75,7 @@ if [ "$install_system" -eq 1 ]; then
                         libudev-dev libclang-dev libwayland-dev libxkbcommon-dev libx11-dev \
                         libxi-dev libxrandr-dev libxcursor-dev libxinerama-dev libvulkan1 \
                         python3 curl ca-certificates git ;;
-                *" fedora "*|*" rhel "*)
+                *" nobara "*|*" fedora "*|*" rhel "*)
                     as_root dnf install -y gcc gcc-c++ make pkgconf-pkg-config \
                         alsa-lib-devel systemd-devel clang-devel wayland-devel \
                         libxkbcommon-devel libX11-devel libXi-devel libXrandr-devel \

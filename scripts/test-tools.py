@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -34,6 +35,15 @@ elif name == "cargo" and "build" in sys.argv:
     sys.exit(int(os.environ.get("TEST_BUILD_STATUS", "0")))
 elif name == "rustup":
     sys.exit(int(os.environ.get("TEST_RUSTUP_STATUS", "0")))
+elif name in ("apt-get", "dnf", "pacman"):
+    sys.exit(int(os.environ.get("TEST_PACKAGE_STATUS", "0")))
+elif name == "curl":
+    status = int(os.environ.get("TEST_DOWNLOAD_STATUS", "0"))
+    if status:
+        sys.exit(status)
+    pathlib.Path(sys.argv[sys.argv.index("--output") + 1]).write_text(
+        '#!/bin/sh\\nmkdir -p "$CARGO_HOME/bin"\\n'
+        'cp "$TEST_RUSTUP_STUB" "$CARGO_HOME/bin/rustup"\\n')
 """
 
 
@@ -48,11 +58,15 @@ class ToolTests(unittest.TestCase):
         self.log = Path(self.temp.name) / "tools.jsonl"
         for name in ("build-benilla.sh", "run-benilla.sh"):
             shutil.copy2(ROOT / name, self.root / name)
+        self.os_release = Path(self.temp.name) / "os-release"
+        self.os_release.write_text("ID=ubuntu\nID_LIKE=debian\n")
+        build = self.root / "build-benilla.sh"
+        build.write_text(build.read_text().replace("/etc/os-release", shlex.quote(str(self.os_release))))
         shutil.copy2(ROOT / "rust-toolchain.toml", self.root / "rust-toolchain.toml")
         (self.root / "Cargo.toml").touch()
         for name in ("cargo", "rustc", "rustup", "cc", "pkg-config", "python3",
                      "uname", "id", "sudo", "apt-get", "dnf", "pacman",
-                     "xcode-select", "brew"):
+                     "xcode-select", "brew", "curl"):
             # Use the real interpreter even when python3 on PATH is fake.
             tool = self.bin / name
             tool.write_text(TOOL.replace("#!/usr/bin/env python3", f"#!{os.sys.executable}", 1))
@@ -111,12 +125,62 @@ class ToolTests(unittest.TestCase):
                 if failure != "TEST_BUILD_STATUS":
                     self.assertFalse(any("build" in call["args"] for call in self.calls("cargo")))
 
-    def test_native_packages_and_toolchain(self):
-        result = self.run_script("build-benilla.sh")
+    def test_ubuntu_flavors_and_nobara_dependencies(self):
+        for distro, like, manager, packages in (
+            ("ubuntu", "debian", "apt-get", ("build-essential", "libasound2-dev", "libudev-dev")),
+            ("linuxmint", "ubuntu debian", "apt-get", ("libclang-dev", "libwayland-dev")),
+            ("pop", "ubuntu debian", "apt-get", ("pkg-config", "libxkbcommon-dev")),
+            ("neon", "ubuntu debian", "apt-get", ("python3", "curl", "ca-certificates")),
+            ("nobara", "fedora", "dnf", ("gcc", "gcc-c++", "alsa-lib-devel", "systemd-devel")),
+            ("nobara", "", "dnf", ("clang-devel", "wayland-devel", "pkgconf-pkg-config")),
+            ("fedora", "", "dnf", ("libxkbcommon-devel", "vulkan-loader")),
+            ("smplos", "arch", "pacman", ("base-devel", "alsa-lib", "systemd-libs")),
+        ):
+            with self.subTest(distro=distro, like=like):
+                self.log.unlink(missing_ok=True)
+                self.os_release.write_text(f'ID={distro}\nID_LIKE="{like}"\n')
+                result = self.run_script("build-benilla.sh")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                installs = self.calls(manager)
+                self.assertTrue(installs)
+                for package in packages:
+                    self.assertIn(package, installs[-1]["args"])
+                if manager == "apt-get":
+                    self.assertEqual(installs[0]["args"], ["update"])
+                self.assertTrue(self.calls("sudo"))
+                self.assertTrue(self.calls("rustup"))
+
+    def test_package_install_failure_stops_before_build(self):
+        for distro in ("ubuntu", "nobara"):
+            with self.subTest(distro=distro):
+                self.log.unlink(missing_ok=True)
+                self.os_release.write_text(f"ID={distro}\n")
+                result = self.run_script("build-benilla.sh", TEST_PACKAGE_STATUS="8")
+                self.assertEqual(result.returncode, 8, result.stderr)
+                self.assertFalse(self.calls("rustup"))
+                self.assertFalse(self.calls("cargo"))
+
+    def test_missing_rustup_download_and_custom_cargo_home(self):
+        stub = self.bin / "rustup-stub"
+        (self.bin / "rustup").rename(stub)
+        cargo_home = Path(self.temp.name) / "custom cargo"
+        result = self.run_script("build-benilla.sh", "--skip-system",
+                                 CARGO_HOME=str(cargo_home), TEST_RUSTUP_STUB=str(stub))
         self.assertEqual(result.returncode, 0, result.stderr)
-        managers = [call for call in self.calls() if call["tool"] in ("apt-get", "dnf", "pacman", "brew")]
-        self.assertTrue(managers)
-        self.assertTrue(self.calls("rustup"))
+        self.assertTrue((cargo_home / "bin" / "rustup").is_file())
+        download = self.calls("curl")[0]["args"]
+        self.assertIn("https://sh.rustup.rs", download)
+        self.assertIn("--fail", download)
+        self.assertFalse(Path(download[download.index("--output") + 1]).exists())
+        self.assertEqual(self.calls("rustup")[0]["args"], ["toolchain", "install"])
+
+    def test_rustup_download_failure_is_not_success(self):
+        (self.bin / "rustup").unlink()
+        result = self.run_script("build-benilla.sh", "--skip-system", TEST_DOWNLOAD_STATUS="22")
+        self.assertEqual(result.returncode, 22, result.stderr)
+        self.assertFalse(self.calls("cargo"))
+        download = self.calls("curl")[0]["args"]
+        self.assertFalse(Path(download[download.index("--output") + 1]).exists())
 
     def test_macos_packages(self):
         result = self.run_script("build-benilla.sh", TEST_OS="Darwin")
