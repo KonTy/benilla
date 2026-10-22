@@ -1,5 +1,5 @@
 //! A read-only reader for the 1.12.1 `Data/` chain: the MPQ archives, format V1/V2, every file
-//! stored whole or `COMPRESS`-flagged and sectored, no encrypted or single-unit files, no PTCH
+//! stored whole or `COMPRESS`-flagged and sectored, including encrypted files, no single-unit or PTCH
 //! patches — anything else is a hard error. A folder the chain mounts under an archive name is
 //! read as loose files ([`Archive::open_dir`]).
 //!
@@ -32,6 +32,7 @@ const USERDATA_SIGNATURE: u32 = 0x1B51_504D;
 const FLAG_IMPLODE: u32 = 0x0000_0100;
 const FLAG_COMPRESS: u32 = 0x0000_0200;
 const FLAG_ENCRYPTED: u32 = 0x0001_0000;
+const FLAG_FIX_KEY: u32 = 0x0002_0000;
 const FLAG_SINGLE_UNIT: u32 = 0x0100_0000;
 /// A patch archive's delete marker (size 0): the path is deleted from the composite chain.
 const FLAG_DELETE_MARKER: u32 = 0x0200_0000;
@@ -291,10 +292,6 @@ impl Archive {
         if block.flags & FLAG_DELETE_MARKER != 0 {
             return Err(Error::NotFound(name.into()));
         }
-        // Outside the 1.12.1 envelope: refuse rather than guess.
-        if block.flags & FLAG_ENCRYPTED != 0 {
-            return Err(Error::Unsupported(format!("encrypted file {name}")));
-        }
         if block.flags & FLAG_SINGLE_UNIT != 0 {
             return Err(Error::Unsupported(format!("single-unit file {name}")));
         }
@@ -315,6 +312,7 @@ impl Archive {
             size: file_size,
             sector_size: idx.sector_size,
             offsets: None,
+            key: (block.flags & FLAG_ENCRYPTED != 0).then(|| file_key(name, block)),
             implode_only,
             avail,
             pos: 0,
@@ -345,7 +343,7 @@ impl Archive {
         open.file.seek(SeekFrom::Start(file_pos))?;
         let mut otab = vec![0u8; otab_cap * 4]; // == otab_len * 4, proven <= avail above
         open.file.read_exact(&mut otab)?;
-        let offsets = otab
+        let mut offsets = otab
             .as_chunks::<4>()
             .0
             .iter()
@@ -354,6 +352,9 @@ impl Archive {
                     .ok_or_else(|| Error::Corrupt(format!("{name}: corrupt sector offset table")))
             })
             .collect::<Result<Vec<u32>>>()?;
+        if let Some(key) = open.key {
+            decrypt_block(&mut offsets, key.wrapping_sub(1));
+        }
         open.offsets = Some(offsets);
         Ok(open)
     }
@@ -371,11 +372,37 @@ impl Archive {
             size,
             sector_size: 0,
             offsets: None,
+            key: None,
             implode_only: false,
             avail: size,
             pos: 0,
             sector: None,
         })
+    }
+}
+
+/// MPQ file encryption hashes only the basename; FIX_KEY uses the archive-relative position.
+/// The offset table takes key - 1, each sector key + index (https://wowdev.wiki/MPQ#Encryption).
+fn file_key(name: &str, block: BlockEntry) -> u32 {
+    let basename = name.rsplit(['\\', '/']).next().unwrap_or(name);
+    let key = hash_string(basename, hash_type::FILE_KEY);
+    if block.flags & FLAG_FIX_KEY != 0 {
+        key.wrapping_add(block.file_pos) ^ block.file_size
+    } else {
+        key
+    }
+}
+
+fn decrypt_bytes(data: &mut [u8], key: u32) {
+    let mut words: Vec<_> = data
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|word| u32::from_le_bytes(*word))
+        .collect();
+    decrypt_block(&mut words, key);
+    for (bytes, word) in data.as_chunks_mut::<4>().0.iter_mut().zip(words) {
+        bytes.copy_from_slice(&word.to_le_bytes());
     }
 }
 
@@ -391,6 +418,7 @@ pub struct ArchiveFile {
     sector_size: usize,
     /// The sector offset table, relative to `base`; `None` for a stored file.
     offsets: Option<Vec<u32>>,
+    key: Option<u32>,
     implode_only: bool,
     /// Bytes from `base` to the archive's end: the cap on every length read from a header.
     avail: usize,
@@ -408,7 +436,7 @@ impl ArchiveFile {
 
     /// The whole file from its start, sector by sector.
     fn read_all(mut self) -> Result<Vec<u8>> {
-        if self.offsets.is_none() {
+        if self.offsets.is_none() && self.key.is_none() {
             self.file.seek(SeekFrom::Start(self.base))?;
             let mut out = vec![0u8; self.size]; // proven <= avail by `open_file`
             self.file.read_exact(&mut out)?;
@@ -428,11 +456,16 @@ impl ArchiveFile {
     fn decode_sector(&mut self, i: usize) -> Result<Vec<u8>> {
         let want = (self.size - i * self.sector_size).min(self.sector_size);
         let name = &self.name;
-        let offsets = self.offsets.as_deref().unwrap_or_default();
-        let (Some(&start), Some(&end)) = (offsets.get(i), offsets.get(i + 1)) else {
-            return Err(Error::Corrupt(format!(
-                "{name}: sector {i} past the offset table"
-            )));
+        let (start, end) = if let Some(offsets) = self.offsets.as_deref() {
+            let (Some(&start), Some(&end)) = (offsets.get(i), offsets.get(i + 1)) else {
+                return Err(Error::Corrupt(format!(
+                    "{name}: sector {i} past the offset table"
+                )));
+            };
+            (start, end)
+        } else {
+            let start = i * self.sector_size;
+            (start as u32, (start + want) as u32)
         };
         let comp_len = u64::from(end)
             .checked_sub(u64::from(start))
@@ -452,6 +485,9 @@ impl ArchiveFile {
             .seek(SeekFrom::Start(self.base + u64::from(start)))?;
         let mut raw = vec![0u8; comp_len]; // proven <= avail above
         self.file.read_exact(&mut raw)?;
+        if let Some(key) = self.key {
+            decrypt_bytes(&mut raw, key.wrapping_add(i as u32));
+        }
 
         let out = if comp_len >= want {
             // A sector that would not shrink is stored verbatim.
@@ -507,7 +543,7 @@ impl Read for ArchiveFile {
         if buf.is_empty() || self.pos >= self.size as u64 {
             return Ok(0);
         }
-        let n = if self.offsets.is_some() {
+        let n = if self.offsets.is_some() || self.key.is_some() {
             self.read_sectored(buf)
         } else {
             self.read_stored(buf)
@@ -1013,6 +1049,85 @@ mod tests {
                 _ => (i % 3) as u8,
             })
             .collect()
+    }
+
+    fn encrypt_bytes(data: &mut [u8], key: u32) {
+        let mut words: Vec<_> = data
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|word| u32::from_le_bytes(*word))
+            .collect();
+        crypto::encrypt_block(&mut words, key);
+        for (bytes, word) in data.as_chunks_mut::<4>().0.iter_mut().zip(words) {
+            bytes.copy_from_slice(&word.to_le_bytes());
+        }
+    }
+
+    #[test]
+    fn encrypted_files_read_and_seek_with_both_key_modes_and_storage_modes() {
+        let mut plain = three_sector_plain();
+        plain.push(0x9b); // An incomplete cipher word stays unencrypted.
+        for compressed in [false, true] {
+            for fixed in [false, true] {
+                for prefix in [0, 512] {
+                    let mut flags = FLAG_EXISTS | FLAG_ENCRYPTED;
+                    let mut key = hash_string("file.xml", hash_type::FILE_KEY);
+                    if fixed {
+                        flags |= FLAG_FIX_KEY;
+                        // archive_with_one_block stores data at relative byte 112.
+                        key = key.wrapping_add(112) ^ plain.len() as u32;
+                    }
+                    let mut data = if compressed {
+                        sectored(&plain)
+                    } else {
+                        plain.clone()
+                    };
+                    if compressed {
+                        flags |= FLAG_COMPRESS;
+                        let count = plain.len().div_ceil(512);
+                        let offsets: Vec<_> = data[..(count + 1) * 4]
+                            .as_chunks::<4>()
+                            .0
+                            .iter()
+                            .map(|word| u32::from_le_bytes(*word) as usize)
+                            .collect();
+                        for (i, bounds) in offsets.windows(2).enumerate() {
+                            encrypt_bytes(
+                                &mut data[bounds[0]..bounds[1]],
+                                key.wrapping_add(i as u32),
+                            );
+                        }
+                        encrypt_bytes(&mut data[..(count + 1) * 4], key.wrapping_sub(1));
+                    } else {
+                        for (i, sector) in data.chunks_mut(512).enumerate() {
+                            encrypt_bytes(sector, key.wrapping_add(i as u32));
+                        }
+                    }
+                    let mut bytes = vec![0u8; prefix];
+                    bytes.extend(archive_with_one_block(
+                        "Interface\\GlueXML\\file.xml",
+                        flags,
+                        &data,
+                        plain.len() as u32,
+                    ));
+                    let (archive, path) = open_temp_kept("encrypted", &bytes);
+                    let name = "interface/gluexml/FILE.XML";
+                    assert_eq!(archive.read_file(name).unwrap(), plain);
+                    let mut file = archive.open_file(name).unwrap();
+                    for (start, len) in
+                        [(500, 40), (1021, 80), (1295, 6), (1, 37), (0, plain.len())]
+                    {
+                        file.seek(SeekFrom::Start(start as u64)).unwrap();
+                        let mut got = vec![0u8; len];
+                        file.read_exact(&mut got).unwrap();
+                        assert_eq!(got, plain[start..start + len]);
+                    }
+                    drop(file);
+                    std::fs::remove_file(path).unwrap();
+                }
+            }
+        }
     }
 
     #[test]

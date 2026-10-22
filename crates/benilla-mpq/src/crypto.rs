@@ -1,6 +1,5 @@
 //! The Storm (MPQ) crypto, byte-exact with the client: the string hash and the block decryptor,
-//! both over one 0x500-entry table. 1.12.1 archives carry no encrypted files, so only the hash and
-//! block tables are ever decrypted.
+//! both over one 0x500-entry table, shared by archive tables and encrypted file sectors.
 
 /// The 0x500-entry encryption table, built at compile time by the seed walk the client runs.
 const fn encryption_table() -> [u32; 0x500] {
@@ -57,11 +56,8 @@ pub fn hash_string(name: &str, kind: u32) -> u32 {
     seed1
 }
 
-/// Decrypt `u32`s in place with `key`; a zero key is a no-op, as in the client.
+/// Decrypt `u32`s in place with `key`, including a key that wraps to zero between sectors.
 pub fn decrypt_block(data: &mut [u32], mut key: u32) {
-    if key == 0 {
-        return;
-    }
     let mut seed: u32 = 0xEEEE_EEEE;
     for v in data.iter_mut() {
         seed = seed.wrapping_add(TABLE[0x400 + (key & 0xFF) as usize]);
@@ -120,11 +116,16 @@ mod tests {
 
     #[test]
     fn decrypt_inverts_encrypt() {
-        let key = hash_string("(hash table)", hash_type::FILE_KEY);
-        let original = [0x1234_5678u32, 0x9ABC_DEF0, 0x0F0F_0F0F, 42];
-        let mut buf = original;
-        encrypt_block(&mut buf, key);
-        decrypt_block(&mut buf, key);
-        assert_eq!(buf, original);
+        for key in [
+            0,
+            u32::MAX,
+            hash_string("(hash table)", hash_type::FILE_KEY),
+        ] {
+            let original = [0x1234_5678u32, 0x9ABC_DEF0, 0x0F0F_0F0F, 42];
+            let mut buf = original;
+            encrypt_block(&mut buf, key);
+            decrypt_block(&mut buf, key);
+            assert_eq!(buf, original);
+        }
     }
 }

@@ -553,7 +553,7 @@ Each entry is the first sentence of a `Deviation:` comment, linking to where it 
 
 #### (crate root)
 
-- The 1.12.1 client's file layer opens only packed MPQs; a folder named for an archive is found by the mount glob there and rejected at the open. benilla reads it, so a loose tree can stand in for a patch without repacking one. ([`src/lib.rs:207`](../crates/benilla-mpq/src/lib.rs#L207))
+- The 1.12.1 client's file layer opens only packed MPQs; a folder named for an archive is found by the mount glob there and rejected at the open. benilla reads it, so a loose tree can stand in for a patch without repacking one. ([`src/lib.rs:208`](../crates/benilla-mpq/src/lib.rs#L208))
 ### benilla-protocol
 
 #### auth

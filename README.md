@@ -145,6 +145,23 @@ If `WOW_DATA` is unset, a sibling
 applies. An explicitly empty `WOW_DATA` still means no install. The launcher runs Cargo so
 changed code is rebuilt, including when `CARGO_TARGET_DIR` points outside the checkout.
 
+If NVIDIA presentation exits with `Couldn't get swap chain texture` on Wayland, or stalls
+for about a second per frame on XWayland, disable vertical sync for that run:
+
+```sh
+WOW_NOVSYNC=1 ./run-benilla.sh
+```
+
+This is an explicit override; the default remains the reference's vertical sync setting.
+Alternatively, select XWayland (requires an available X11 `DISPLAY`):
+
+```sh
+env -u WAYLAND_DISPLAY ./run-benilla.sh
+```
+
+This changes the window backend, not the Vulkan renderer. The launcher does not install or
+replace graphics drivers.
+
 The 1.12.1 client runs as upstream — a 1.12.1 install (build 5875), a 1.12.1 server with Warden
 off ([vmangos](https://github.com/vmangos/core) is what development runs against), stable Rust
 and a C compiler:
