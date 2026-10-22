@@ -131,8 +131,16 @@ Builds use the committed lockfile and include the client, world viewer, extracto
 [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md#setting-up).
 
 [`run-benilla.sh`](run-benilla.sh) accepts optional user/password arguments or the existing
-`WOW_USER`/`WOW_PASS` environment variables; with neither, use the login screen.
-`WOW_HOST` defaults to `127.0.0.1:3724`. If `WOW_DATA` is unset, a sibling
+`WOW_USER`/`WOW_PASS` environment variables; with no complete, nonempty pair, use the login screen.
+`WOW_HOST` defaults to `127.0.0.1:3724`. For a local host, the launcher first runs
+`../vmangos/bin-db/start-server.sh` and waits up to 60 seconds for the auth (3724, or the
+port in `WOW_HOST`) and world (8085) listeners. The existing server starter manages MariaDB,
+realmd and mangosd and leaves them running after the client exits.
+`BENILLA_SERVER_START=/path/to/start-server.sh` selects another configured local stack;
+`BENILLA_WORLD_PORT` overrides its world port. The server must already be installed and
+configured; the client build script does not provision it. Use `./run-benilla.sh --no-server`
+for client-only startup; a remote `WOW_HOST` also skips local server startup.
+If `WOW_DATA` is unset, a sibling
 `VanillaClient/Data` directory is used when present; otherwise the normal install resolver
 applies. An explicitly empty `WOW_DATA` still means no install. The launcher runs Cargo so
 changed code is rebuilt, including when `CARGO_TARGET_DIR` points outside the checkout.

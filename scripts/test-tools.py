@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import shlex
+import socket
 import subprocess
 import tempfile
 import unittest
@@ -35,6 +36,12 @@ elif name == "cargo" and "build" in sys.argv:
     sys.exit(int(os.environ.get("TEST_BUILD_STATUS", "0")))
 elif name == "rustup":
     sys.exit(int(os.environ.get("TEST_RUSTUP_STATUS", "0")))
+elif name.startswith("start-server"):
+    sys.exit(int(os.environ.get("TEST_SERVER_STATUS", "0")))
+elif name == "python3":
+    if os.environ.get("TEST_REAL_READINESS"):
+        os.execv(sys.executable, [sys.executable, *sys.argv[1:]])
+    sys.exit(int(os.environ.get("TEST_READY_STATUS", "0")))
 elif name in ("apt-get", "dnf", "pacman"):
     sys.exit(int(os.environ.get("TEST_PACKAGE_STATUS", "0")))
 elif name == "curl":
@@ -66,7 +73,7 @@ class ToolTests(unittest.TestCase):
         (self.root / "Cargo.toml").touch()
         for name in ("cargo", "rustc", "rustup", "cc", "pkg-config", "python3",
                      "uname", "id", "sudo", "apt-get", "dnf", "pacman",
-                     "xcode-select", "brew", "curl"):
+                     "xcode-select", "brew", "curl", "start-server.sh"):
             # Use the real interpreter even when python3 on PATH is fake.
             tool = self.bin / name
             tool.write_text(TOOL.replace("#!/usr/bin/env python3", f"#!{os.sys.executable}", 1))
@@ -74,6 +81,7 @@ class ToolTests(unittest.TestCase):
         self.env = {key: value for key, value in os.environ.items()
                     if not key.startswith(("WOW_", "CARGO_", "RUSTUP_", "TEST_"))}
         self.env.update(PATH=f"{self.bin}:{os.defpath}", TOOL_LOG=str(self.log),
+                        BENILLA_SERVER_START=str(self.bin / "start-server.sh"),
                         HOME=str(Path(self.temp.name) / "home"))
 
     def run_script(self, name, *args, **env):
@@ -200,8 +208,64 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(run["cwd"], str(self.root))
         self.assertIsNone(run["data"])
         self.assertEqual(run["host"], "127.0.0.1:3724")
-        self.assertEqual(run["user"], "")
-        self.assertEqual(run["password"], "")
+        self.assertIsNone(run["user"])
+        self.assertIsNone(run["password"])
+        self.assertLess(self.calls().index(self.calls("start-server.sh")[0]),
+                        self.calls().index(run))
+        self.assertEqual(self.calls("python3")[0]["args"][:3], ["-", "127.0.0.1:3724", "8085"])
+
+    def test_server_start_or_readiness_failure_prevents_client(self):
+        for failure in ("TEST_SERVER_STATUS", "TEST_READY_STATUS"):
+            with self.subTest(failure=failure):
+                self.log.unlink(missing_ok=True)
+                result = self.run_script("run-benilla.sh", **{failure: "9"})
+                self.assertEqual(result.returncode, 9, result.stderr)
+                self.assertFalse(self.calls("cargo"))
+
+    def test_missing_server_script_has_actionable_error(self):
+        result = self.run_script("run-benilla.sh", BENILLA_SERVER_START="/no/such/server")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--no-server", result.stderr)
+        self.assertFalse(self.calls("cargo"))
+
+    def test_readiness_connects_to_both_real_listeners(self):
+        with socket.socket() as auth, socket.socket() as world:
+            auth.bind(("127.0.0.1", 0))
+            world.bind(("127.0.0.1", 0))
+            auth.listen()
+            world.listen()
+            result = self.run_script(
+                "run-benilla.sh", TEST_REAL_READINESS="1",
+                WOW_HOST=f"127.0.0.1:{auth.getsockname()[1]}",
+                BENILLA_WORLD_PORT=str(world.getsockname()[1]))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("auth and world servers ready", result.stdout)
+        self.assertTrue(self.calls("cargo"))
+
+    def test_invalid_readiness_port_prevents_client(self):
+        result = self.run_script("run-benilla.sh", TEST_REAL_READINESS="1",
+                                 BENILLA_WORLD_PORT="invalid")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("invalid server port", result.stderr)
+        self.assertFalse(self.calls("cargo"))
+
+    def test_client_only_and_remote_host_do_not_start_local_server(self):
+        for args, env in ((("--no-server",), {}), ((), {"WOW_HOST": "remote.example:3724"})):
+            with self.subTest(args=args, env=env):
+                self.log.unlink(missing_ok=True)
+                result = self.run_script("run-benilla.sh", *args, **env)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse(self.calls("start-server.sh"))
+                self.assertFalse(self.calls("python3"))
+
+    def test_empty_or_partial_credentials_do_not_auto_submit(self):
+        for env in ({"WOW_USER": "", "WOW_PASS": ""},
+                    {"WOW_USER": "test"}, {"WOW_PASS": "test"}):
+            with self.subTest(env=env):
+                result = self.run_script("run-benilla.sh", **env)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIsNone(self.calls("cargo")[-1]["user"])
+                self.assertIsNone(self.calls("cargo")[-1]["password"])
 
     def test_sibling_data_and_explicit_overrides(self):
         data = Path(self.temp.name) / "VanillaClient" / "Data"

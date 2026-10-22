@@ -109,6 +109,9 @@ out of scope is closed with the reason.
   A Vulkan-capable GPU driver on Linux, your own game install and a server are separate.
   `./run-benilla.sh` builds/runs the release client from any working directory; `WOW_DATA`
   and `WOW_HOST` override its optional sibling `VanillaClient/Data` and local-server defaults.
+  The launcher starts the sibling VMaNGOS stack and waits for its auth/world ports; use
+  `--no-server` to run against an already managed server, or `BENILLA_SERVER_START` to point
+  at a different installed stack's starter. It never creates or modifies server accounts.
   Run `python3 scripts/test-tools.py` for the build/launcher contract tests, without installing
   anything or logging into a server.
 - **The toolchain.** Stable Rust (`rust-toolchain.toml` adds clippy and rustfmt) and a C
