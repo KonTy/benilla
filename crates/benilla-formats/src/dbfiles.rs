@@ -802,6 +802,67 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    #[test]
+    fn patch_directories_combine_wrath_models_and_sqlite_without_mpq_files() {
+        for patch_name in ["patch-a.MPQ", "patch-a.patch"] {
+            let (dir, db) = dumped();
+            drop(db);
+            let patch = dir.join(patch_name);
+            std::fs::create_dir_all(patch.join("DBFilesClient")).expect("DBC directory");
+            std::fs::create_dir_all(patch.join("Models")).expect("model directory");
+            for name in ["Test.dbc", "Fallback.dbc"] {
+                std::fs::write(patch.join("DBFilesClient").join(name), synthetic_wdbc())
+                    .expect("loose DBC");
+            }
+            let mut model = vec![0u8; 0x110];
+            model[..4].copy_from_slice(b"MD20");
+            model[4..8].copy_from_slice(&264u32.to_le_bytes());
+            std::fs::write(patch.join("Models/Test.M2"), model).expect("Wrath model");
+            let mut skin = vec![0u8; 0x30];
+            skin[..4].copy_from_slice(b"SKIN");
+            std::fs::write(patch.join("Models/Test00.skin"), skin).expect("external skin");
+            {
+                let conn = Connection::open(dir.join(FILE_NAME)).expect("open database");
+                conn.execute_batch("UPDATE Test SET c1 = 'Gamma' WHERE rowid = 2;")
+                    .expect("change SQLite name");
+            }
+
+            let mut chain = Chain::open(&dir).expect("open folders without any MPQ files");
+            let table = crate::dbc::load(&mut chain, "DBFilesClient\\Test.dbc", schema(), "Test")
+                .expect("load SQLite table");
+            assert_eq!(
+                crate::dbc::str_at(&table, &table.records()[1], 1).as_deref(),
+                Some("Gamma")
+            );
+            let fallback = crate::dbc::load(
+                &mut chain,
+                "DBFilesClient\\Fallback.dbc",
+                schema(),
+                "Fallback",
+            )
+            .expect("load loose DBC when no SQLite table exists");
+            assert_eq!(
+                crate::dbc::str_at(&fallback, &fallback.records()[1], 1).as_deref(),
+                Some("Beta")
+            );
+            let bytes = chain.read("models\\test.m2").expect("loose model");
+            let format = benilla_m2::parse_m2(&mut Cursor::new(bytes.as_slice()))
+                .expect("decode Wrath model");
+            let bytes = chain.read("models\\test00.skin").expect("loose skin");
+            let skin = format
+                .model()
+                .parse_skin_file(&bytes)
+                .expect("decode external skin");
+            assert!(skin.indices().is_empty());
+            assert_eq!(
+                chain.find_file_archive("models\\test.m2"),
+                Some(patch.as_path())
+            );
+            drop(chain);
+            std::fs::remove_dir_all(dir).expect("remove synthetic fixture");
+        }
+    }
+
     /// A renamed string cell is what the client reads: the block is rebuilt from the table.
     #[test]
     fn edited_string_cell_is_read() {
@@ -919,8 +980,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// Every table in the install's `DBFilesClient` decodes to what the patch chain's DBC file
-    /// holds, slot for slot: numbers as stored, strings as resolved.
+    /// Re-export the chain's DBCs before comparing: an installed SQLite override may differ
+    /// intentionally, while the codec must preserve every slot of the same source bytes.
     #[test]
     fn every_table_roundtrips_against_the_patch_chain() {
         let data = crate::wow_data_or_skip!();
@@ -933,12 +994,31 @@ mod tests {
         let db = DbFiles::open(&db_path).expect("open DBFilesClient");
         let tables: Vec<String> = db.tables.values().cloned().collect();
         assert!(!tables.is_empty(), "the dump wrote no tables");
+        let dir = temp_dir("chain_roundtrip");
+        let out = dir.join(FILE_NAME);
+        let conn = Connection::open(&out).expect("open scratch database");
+        conn.execute_batch("PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF;")
+            .expect("configure scratch database");
+        let mut checked = 0;
         for table in tables {
             let path = format!("DBFilesClient\\{table}.dbc");
             let Ok(bytes) = chain.read_file(&path) else {
                 eprintln!("dbfiles round-trip: {table} not in the chain; skipped");
                 continue;
             };
+            let (rc, fc, rs, ssz) = wdbc_header(&bytes).expect("WDBC header");
+            let records_end = 20 + rc as usize * rs as usize;
+            dump_table(
+                &conn,
+                &format!("{table}.dbc"),
+                rc,
+                fc,
+                rs,
+                &bytes[20..records_end],
+                &bytes[records_end..records_end + ssz as usize],
+            )
+            .expect("export original chain bytes");
+            let db = DbFiles::open(&out).expect("open scratch DBC source");
             let header = chain_header(&chain, &path).expect("a readable header");
             let fc = header.field_count as usize;
             // The schema the dumper's classification implies: the table's string columns as
@@ -997,6 +1077,11 @@ mod tests {
                     }
                 }
             }
+            checked += 1;
         }
+        assert!(checked > 0, "no patch-chain tables were round-tripped");
+        eprintln!("dbfiles round-trip: {checked} tables matched their source bytes");
+        drop(conn);
+        std::fs::remove_dir_all(dir).expect("remove scratch database");
     }
 }

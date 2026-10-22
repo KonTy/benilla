@@ -55,6 +55,9 @@ data-state difference in ItemDisplayInfo (29604 vs 29605), not a decode differen
 
 An install with no `DBFilesClient` behaves exactly like upstream: 1.12.1 is untouched by this
 fork by default.
+Overrides may intentionally change rows or strings. The codec round-trip test exports the
+patch chain's bytes into a temporary database before comparing every decoded field, rather
+than assuming an installed override is identical to its source.
 
 ## Branches
 
