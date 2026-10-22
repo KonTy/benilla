@@ -345,6 +345,11 @@ Data/
       Axe_2H_IcecrownRaid_D_0100.skin
 ```
 
+This recipe was checked on the Arch-derived development host with a fresh loose tree:
+the known axe M2/skin, one AreaTable DBC and its exported SQLite database, and **zero packed
+MPQs**. The animation CLI, one-table codec round-trip and exact Bevy weapon-pipeline test all
+passed. This does not replace testing the bootstrap on your own clean Arch installation.
+
 ### 5. Understand what this does not test
 
 The miniature tree proves model/skin reading, loose folders, and SQLite/fallback behavior.
